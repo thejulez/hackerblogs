@@ -54,6 +54,9 @@ probe = out / "to_classify.json"  # carries each site's final URL from the probe
 probed = {r["site"]: r for r in json.loads(probe.read_text())} if probe.exists() else {}
 final = {k: r.get("final_url") for k, r in probed.items()}
 # results of launcher/check.ts: every listed link requested once from a Sandbox
+# the address each blog got last time, for exports that carry no probe evidence for it
+known_file = out / "blog_urls.json"
+known = json.loads(known_file.read_text()) if known_file.exists() else {}
 checked = out / "url_check.json"
 link_status = {r["url"]: r["status"] for r in json.loads(checked.read_text())} if checked.exists() else {}
 drop |= {b["site"] for b in blogs if parked_url(final.get(b["site"]))}
@@ -81,7 +84,10 @@ for b in blogs:
     f = site / "blog" / f"{b['slug']}.json"
     d = json.loads(f.read_text())
     d["type"] = b["type"]  # after a retype by the second opinion
-    p = probed.get(b["site"], {})
+    # probe evidence: this export's blog file (p08 writes it), else to_classify.json (only unclassified sites)
+    p = {"status": d["probe_status"], "final_url": d["final_url"]} if "final_url" in d else probed.get(b["site"], {})
+    if not p and b["site"] in known:  # neither: keep the address the last merge worked out
+        p = {"status": 200, "final_url": known[b["site"]]}
     # a personal site's homepage is the blog; p06's blog_path there is only where the feed was found
     path = d.get("blog_path", "") if b["type"] == "company" else ""
     url = blog_url(b["site"], path, p.get("final_url"), p.get("status"))
@@ -117,4 +123,5 @@ for b in blogs:
             m["stance"] = s["stances"].get(str(m["id"]))  # only current-rule labels
         more.write_text(json.dumps(ms, ensure_ascii=False))
 (site / "blogs.json").write_text(json.dumps(blogs, ensure_ascii=False))
+known_file.write_text(json.dumps({**known, **{b["site"]: b["url"] for b in blogs if not b.get("unverified")}}))
 print(f"merged summaries into {n} of {len(blogs)} blogs")

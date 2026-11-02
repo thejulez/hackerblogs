@@ -57,7 +57,7 @@ if (WORK / "probe.parquet").exists():
     home = {
         r["site"]: r
         for r in pq.read_table(
-            WORK / "probe.parquet", columns=["site", "final_url", "home_title", "home_desc", "site_name"]
+            WORK / "probe.parquet", columns=["site", "status", "final_url", "home_title", "home_desc", "site_name"]
         ).to_pylist()
     }
 # hijacked domains serve gambling or parking pages, often under the old feed, so a working feed proves nothing
@@ -247,6 +247,9 @@ for rank, b in enumerate(rows, 1):
         "feed_kind": b["feed_kind"],
         "n_entries": b["n_entries"],
         "blog_path": c.get("blog_path") or "",
+        # where the homepage probe landed: the merge links readers there (right scheme, current domain)
+        "probe_status": home.get(site, {}).get("status"),
+        "final_url": home.get(site, {}).get("final_url") or "",
         "description": plain(h.get("home_desc"), 300),
         "praised_for": s.get("praised_for") or "",
         "criticized_for": s.get("criticized_for") or "",
