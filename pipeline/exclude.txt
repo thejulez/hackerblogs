@@ -350,3 +350,18 @@ ocadotechnology.com
 objectrocket.com
 koi.ai
 msrgear.com
+# full-wave classification audit: product, consulting and organisation pages, not blogs
+jarvislabs.ai
+wsetglobal.com
+originwirelessai.com
+credera.com
+oxylabs.io
+taxjar.com
+legal.thomsonreuters.com
+broadbandsearch.net
+peoplekeep.com
+freetrade.io
+pinkerton.com
+trainingpeaks.com
+vooban.com
+cybaea.net

@@ -104,7 +104,9 @@ const listed = new Set(blogs.map((b) => b.slug));
 let n = 0;
 if (existsSync(`${SRC}/mentions`)) {
   for (const f of readdirSync(`${SRC}/mentions`)) {
-    if (!listed.has(f.replace(/\.json$/, ""))) continue;
+    const slug = f.replace(/\.json$/, "");
+    // skip files an older export left behind: only blogs with more mentions than their page shows have a list
+    if (!listed.has(slug) || !JSON.parse(readFileSync(`src/data/blog/${f}`, "utf8")).n_more) continue;
     const rows = JSON.parse(readFileSync(`${SRC}/mentions/${f}`, "utf8"))
       .slice(0, MORE)
       .map(trim);

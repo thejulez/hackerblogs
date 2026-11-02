@@ -66,6 +66,10 @@ async def get_home(c: httpx.AsyncClient, site: str):
     return res
 
 
+# comment feeds and WordPress/oEmbed JSON look like feeds but are not the blog's posts (feed audit)
+NOT_FEED = re.compile(r"comments?/feed|feed=comments|comments-rss|/comments/?$|wp-json|oembed", re.I)
+# section links that usually lead to the blog part of a personal site (/blog/, /ongoing/, /pyblog/ ...)
+SECTION = re.compile(r"^/(blog|weblog|writing|writings|posts|articles|essays|journal|notes|ongoing|pyblog)/?$", re.I)
 FEED_HREF = re.compile(r"(/feed/?|/rss/?|/atom/?|[./](rss|atom|feed)\.xml|/index\.xml|\.rss|\?feed=rss2?)$", re.I)
 
 
@@ -77,7 +81,8 @@ def parse_home(final_url: str, body: bytes) -> dict:
     for link in tree.css("link[rel~=alternate], link[rel~=feed]"):
         t = (link.attributes.get("type") or "").lower()
         href = link.attributes.get("href")
-        if href and (any(t.startswith(ft) for ft in FEED_TYPES) or "feed" in (link.attributes.get("rel") or "")):
+        json_ok = t != "application/json" or not NOT_FEED.search(href or "")
+        if href and json_ok and (any(t.startswith(ft) for ft in FEED_TYPES) or "feed" in (link.attributes.get("rel") or "")):
             feeds.append(urljoin(final_url, href))
     # some blogs only link their feed in the page body ("RSS" in the footer)
     home_host = ".".join(urlsplit(final_url).netloc.lower().split(".")[-2:])
@@ -87,7 +92,17 @@ def parse_home(final_url: str, body: bytes) -> dict:
         same_site = urlsplit(href).netloc.lower().endswith(home_host)
         if same_site and (FEED_HREF.search(href) or text in ("rss", "feed", "atom", "rss feed", "subscribe via rss")):
             feeds.append(href)
-    feeds = list(dict.fromkeys(f for f in feeds if f.startswith("http")))
+    feeds = list(dict.fromkeys(f for f in feeds if f.startswith("http") and not NOT_FEED.search(f)))
+    sections = []
+    if (refresh := tree.css_first('meta[http-equiv="refresh" i]')) and "url=" in (
+        c := refresh.attributes.get("content") or ""
+    ).lower():
+        sections.append(urljoin(final_url, c.split("=", 1)[1].strip(" '\"")))
+    for a in tree.css("a[href]"):
+        href = urljoin(final_url, a.attributes.get("href") or "")
+        if urlsplit(href).netloc.lower().endswith(home_host) and SECTION.match(urlsplit(href).path):
+            sections.append(href.split("#")[0])
+    sections = list(dict.fromkeys(sections))
     feeds.sort(key=lambda f: "sitemap" in f.lower())  # SEO sitemap feeds list pages, not posts: try them last
     return {
         "home_title": title.text(strip=True)[:200] if title else "",
@@ -95,4 +110,5 @@ def parse_home(final_url: str, body: bytes) -> dict:
         "site_name": meta('meta[property="og:site_name"]'),
         "generator": meta('meta[name="generator"]'),
         "feed_hints": feeds[:5],
+        "sections": sections[:2],
     }

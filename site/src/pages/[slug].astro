@@ -23,6 +23,8 @@ const chartYears = yearRange.map((year) => {
 });
 const year = (iso: string | null) => (iso ? iso.slice(0, 4) : "");
 const st = b.stance;
+// below the minimum sample, recommend counts and reasons say too little to show
+const enough = !!band(st);
 const stTotal = st ? st.recommend + st.neutral + st.critical : 0;
 const u = b.author_profile;
 const path = (url: string) => {
@@ -140,7 +142,7 @@ const counts = {
         >
       </div>
       {
-        st && (
+        st && enough && (
           <div>
             <>
               <strong>{st.recommend}</strong>
@@ -201,7 +203,7 @@ const counts = {
         <section class="why">
           <h2>Why HN links it</h2>
           <p>{b.why}</p>
-          {(b.praised_for || (b.criticized_for && showCrit)) && (
+          {enough && (b.praised_for || (b.criticized_for && showCrit)) && (
             <dl class="reasons">
               {b.praised_for && (
                 <div>
@@ -332,7 +334,7 @@ const counts = {
                   </p>
                 </>
               )}
-              <a class="ctx small" href={`${HN}/item?id=${m.id}`}>
+              <a class="ctx small" href={`${HN}/item?id=${m.kind === "story" ? m.id : (m.story_id ?? m.id)}`}>
                 {m.kind === "story" ? "HN discussion" : `on “${m.title || "a thread"}”`} <Fragment set:html={ext} />
               </a>
             </li>
@@ -471,7 +473,11 @@ const counts = {
         li.append(p);
       }
       li.append(
-        link(`${HN}/item?id=${m.id}`, m.kind === "story" ? "HN discussion ↗" : `on “${m.title || "a thread"}” ↗`, "ctx small"),
+        link(
+          `${HN}/item?id=${m.kind === "story" ? m.id : (m.story_id ?? m.id)}`,
+          m.kind === "story" ? "HN discussion ↗" : `on “${m.title || "a thread"}” ↗`,
+          "ctx small",
+        ),
       );
       ol.append(li);
     }

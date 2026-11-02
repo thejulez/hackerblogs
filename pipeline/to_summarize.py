@@ -15,11 +15,11 @@ PER_THREAD = 3
 PER_BLOG = 40
 
 
-def sample(mentions: list[dict], author: str | None) -> list[dict]:
+def sample(mentions: list[dict], authors: set[str]) -> list[dict]:
     per_thread: dict = {}
     out = []
     for m in mentions:
-        if m["kind"] != "comment" or not m.get("snippet") or (author and m.get("by") == author):
+        if m["kind"] != "comment" or not m.get("snippet") or m.get("by") in authors:
             continue
         t = m.get("story_id")
         if per_thread.get(t, 0) >= PER_THREAD:
@@ -31,6 +31,16 @@ def sample(mentions: list[dict], author: str | None) -> list[dict]:
     return out
 
 
+def authors(b: dict, d: dict) -> set[str]:
+    """The blog's own author on HN: named in their profile, or the one person who links it far more than anyone else."""
+    found = {b["hn_author"]} if b.get("hn_author") else set()
+    found |= {li["by"] for li in d.get("linkers", []) if li.get("is_author")}
+    links = d.get("linkers", [])
+    if links and links[0]["n_links"] >= max(5, 0.3 * d.get("n_mentions", 0)):
+        found.add(links[0]["by"])
+    return found
+
+
 def build(site_dir: Path, done: set[str]) -> list[dict]:
     todo = []
     for b in json.loads((site_dir / "blogs.json").read_text()):
@@ -38,8 +48,9 @@ def build(site_dir: Path, done: set[str]) -> list[dict]:
             continue
         d = json.loads((site_dir / "blog" / f"{b['slug']}.json").read_text())
         more = site_dir / "mentions" / f"{b['slug']}.json"
-        ms = d["mentions"] + (json.loads(more.read_text()) if more.exists() else [])
-        comments = sample(ms, b.get("hn_author"))
+        # only this export's own list: an old file left behind can belong to another blog with the same slug
+        ms = d["mentions"] + (json.loads(more.read_text()) if more.exists() and d.get("n_more") else [])
+        comments = sample(ms, authors(b, d))
         if comments:
             todo.append({"site": b["site"], "name": b.get("author") or b.get("name") or b["site"], "comments": comments})
     return todo

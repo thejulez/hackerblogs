@@ -19,7 +19,7 @@ import pyarrow.compute  # noqa: F401  (pa.compute)
 import pyarrow.parquet as pq
 from common import WORK, args, connect, listed, log
 from dateutil import parser as dateparser
-from net import client, get, get_home, parse_home
+from net import NOT_FEED, client, get, get_home, parse_home
 
 PATHS = [
     "/feed",
@@ -32,8 +32,33 @@ PATHS = [
     "/blog/feed",
     "/blog/rss.xml",
     "/posts/index.xml",
+    "/feed.atom",
+    "/index.rss",
+    "/index.atom",
 ]
-BLOG_PATHS = ["/blog/feed/", "/blog/index.xml", "/blog/atom.xml", "/blog/?feed=rss2"]
+BLOG_PATHS = [
+    "/blog/feed/",
+    "/blog/index.xml",
+    "/blog/atom.xml",
+    "/blog/?feed=rss2",
+    "/blog/rss",
+    "/blog/feed.xml",
+    "/blog/index.rss",
+]
+# hosts where a homepage redirect lands on someone else's blog, and where a guessed subdomain is another user
+PLATFORMS = ("github.com", "github.blog", "substack.com", "about.me", "medium.com", "linktr.ee", "twitter.com", "x.com")
+SHARED = (
+    ".dreamwidth.org",
+    ".wordpress.com",
+    ".blogspot.com",
+    ".github.io",
+    ".substack.com",
+    ".medium.com",
+    ".tumblr.com",
+    ".livejournal.com",
+    ".neocities.org",
+    ".bearblog.dev",
+)
 FEED_MAX_BYTES = 5_000_000  # some feeds carry every post in full
 STALE = timedelta(days=730)
 SCHEMA = pa.schema(
@@ -67,9 +92,13 @@ def candidates(site: str, probe: dict, blog_path: str = "") -> list[tuple[str, s
     host = urlsplit(base).netloc.lower()
     gen = (probe.get("generator") or "").lower()
 
-    hints = [u for u in probe.get("feed_hints") or [] if "comments/feed" not in u]
+    hints = [u for u in probe.get("feed_hints") or [] if not NOT_FEED.search(u)]
+    own = site.split("/", 1)[0].removeprefix("www.")
+    if host.endswith(PLATFORMS) and not host.endswith(own):
+        # the homepage now redirects to a platform (a GitHub org, a Substack profile): its feeds are not this blog's
+        return [("platform", "https://medium.com/feed/" + site.split("/", 1)[1])] if site.startswith("medium.com/@") else []
     if blog_path:  # company: feeds of the blog section first, never the site-wide changelog or status feed
-        hints = [u for u in hints if blog_path in urlsplit(u).path] + [u for u in hints if "blog" in u.lower()]
+        hints = [u for u in hints if blog_path in urlsplit(u).path] + [u for u in hints if blog_path not in urlsplit(u).path]
         out = [("hint", u) for u in probe.get("blog_hints") or []]
         out += [("hint", u) for u in hints]
         out += [("path", urljoin(origin, blog_path.rstrip("/") + p)) for p in PATHS[:7]]
@@ -86,10 +115,13 @@ def candidates(site: str, probe: dict, blog_path: str = "") -> list[tuple[str, s
     if host.endswith(".blogspot.com") or gen.startswith("blogger"):
         out.append(("platform", origin + "/feeds/posts/default"))
     if not site.startswith("medium.com/") and probe.get("status", 1):  # status 0: homepage unreachable
+        section = urlsplit(base).path.rstrip("/")
+        if section and not blog_path:  # the homepage redirected into a section (replit.com/blog): try its feeds first
+            out += [("path", urljoin(origin, section + p)) for p in ("/feed", "/feed.xml", "/rss.xml", "/atom.xml", "/index.xml")]
         out += [("path", urljoin(origin, p)) for p in PATHS]
         # many personal sites keep the blog in a section or on a subdomain (found by the feed audit)
         out += [("path", urljoin(origin, p)) for p in BLOG_PATHS]
-        if "/" not in site and not host.startswith(("blog.", "writings.")):
+        if "/" not in site and not host.startswith(("blog.", "writings.")) and not host.endswith(SHARED):
             bare = host.removeprefix("www.")
             out += [
                 ("path", f"https://{sub}.{bare}{p}") for sub in ("blog", "writings") for p in ("/feed", "/rss.xml", "/atom.xml")
@@ -203,7 +235,9 @@ async def discover(c, sem, per_host, site, probe, blog_path=""):
             # an advertised "feed" that is an HTML page often links the real feed: follow one hop
             if res and kind != "path" and res[0] < 400 and "html" in res[2].lower():
                 try:
-                    hop = [u for u in parse_home(res[1], res[3]).get("feed_hints") or [] if u != url][:2]
+                    hop = [u for u in parse_home(res[1], res[3]).get("feed_hints") or [] if u != url and not NOT_FEED.search(u)][
+                        :2
+                    ]
                 except Exception:
                     hop = []
                 for u in hop:
@@ -233,7 +267,49 @@ async def discover(c, sem, per_host, site, probe, blog_path=""):
                     status=status,
                 )
                 break
+    if row["feed_url"] is None and probe.get("status", 0) and probe["status"] < 400:
+        await sections(c, per_host, probe, row)
     return row
+
+
+async def sections(c, per_host, probe, row):
+    """Last resort: the blog lives in a section the homepage links (/blog/, /ongoing/) or meta-refreshes to;
+    read that page's advertised feeds (feed audit: martinfowler.com, tbray.org, mikeash.com)."""
+    async with per_host(probe["final_url"]):
+        res = await get(c, probe["final_url"])
+    if not res or res[0] >= 400 or "html" not in res[2]:
+        return
+    try:
+        pages = parse_home(res[1], res[3]).get("sections") or []
+    except Exception:
+        return
+    for page in pages:
+        async with per_host(page):
+            res = await get(c, page)
+        if not res or res[0] >= 400 or "html" not in res[2]:
+            continue
+        try:
+            hints = parse_home(res[1], res[3]).get("feed_hints") or []
+        except Exception:
+            continue
+        for u in hints[:3]:
+            async with per_host(u):
+                r2 = await get(c, u, FEED_MAX_BYTES)
+            if not r2 or r2[0] >= 400:
+                continue
+            info = await asyncio.to_thread(parse_feed, r2[2].lower(), r2[3])
+            if info:
+                last = info["last_post_at"]
+                status = "undated" if last is None else "stale" if last < datetime.now(UTC) - STALE else "ok"
+                row.update(
+                    feed_url=r2[1],
+                    kind="section",
+                    title=info["title"],
+                    n_entries=info["n_entries"],
+                    last_post_at=last,
+                    status=status,
+                )
+                return
 
 
 async def main(todo):

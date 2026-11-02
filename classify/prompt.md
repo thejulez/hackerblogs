@@ -10,6 +10,7 @@ Return one result per input site, same order, with:
   - `parked` for a domain-sale, parking, hosting placeholder, "coming soon", login page or empty page;
   - `changed` if it redirects to, or now is, an unrelated site or business;
   - `empty` if the homepage could not be fetched (status 0 or an error) and there is no other evidence;
+  - status 403, 429 or 503 means the host blocked our crawler (Medium, Blogspot and Cloudflare sites often do), not that the site is empty: judge from the HN titles and URLs, and use `ok` when they show a living blog;
   - `ok` otherwise.
     Anything other than `ok` must also get `kind: other`, whatever the HN titles say.
 - `kind`, one of:

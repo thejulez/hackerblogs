@@ -40,7 +40,7 @@ async def probe(c, sem, site):
         row.update(status=status, final_url=final_url)
         if status < 400 and "html" in ctype:
             try:
-                row.update(parse_home(final_url, body))
+                row.update({k: v for k, v in parse_home(final_url, body).items() if k != "sections"})  # p06 reads sections itself
             except Exception:  # malformed HTML must not stop the crawl
                 pass
     return row

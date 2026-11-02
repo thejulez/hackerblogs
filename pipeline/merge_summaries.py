@@ -39,6 +39,8 @@ drop = {
     if excluded(b["site"], rules)
     or conf.get(b["site"], 1) < MIN_CONFIDENCE
     or SPAM.search(f"{b.get('name', '')} {b.get('description', '')}")
+    # a company linked from fewer than two HN stories is mostly a product page with a post or two (audit: 8 of 9 wrong)
+    or (b["type"] == "company" and b.get("n_stories", 0) < 2)
 }
 probe = out / "to_classify.json"  # carries each site's final URL from the probe
 probed = {r["site"]: r for r in json.loads(probe.read_text())} if probe.exists() else {}
