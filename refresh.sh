@@ -32,7 +32,7 @@ python3 -u classify/summarize.py data/out/to_summarize.json data/out/summaries.j
 
 log "4. check every link from a Sandbox (dead links fall back or open the Web Archive)"
 python3 pipeline/merge_summaries.py data/out
-python3 -c "import json; b=json.load(open('data/out/site/blogs.json')); json.dump([x['url'] for x in b], open('data/out/urls.json','w'))"
+python3 pipeline/links_due.py data/out  # new links, failing ones and a monthly quarter of the rest
 (cd launcher && pnpm -s check-urls)
 python3 pipeline/merge_summaries.py data/out
 python3 pipeline/validate.py data/out

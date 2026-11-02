@@ -1,8 +1,8 @@
 /**
  * Check every listed blog link from a Sandbox (not the home network):
- *   pnpm check-urls   reads ../data/out/urls.json, writes ../data/out/url_check.json
+ *   pnpm check-urls   reads ../data/out/urls.json, merges the results into ../data/out/url_check.json
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Sandbox } from "@vercel/sandbox";
 import { pipelineFiles, REGION, ROOT, sh } from "./lib.ts";
@@ -35,7 +35,12 @@ try {
   if (r.exitCode !== 0) throw new Error(`check_urls exit ${r.exitCode}`);
   const buf = await s.readFileToBuffer({ path: "/tmp/out.json" });
   if (!buf) throw new Error("no result");
-  writeFileSync(join(ROOT, "data", "out", "url_check.json"), buf);
+  // merge: links not in this run keep their last result
+  const file = join(ROOT, "data", "out", "url_check.json");
+  const all = new Map<string, unknown>();
+  for (const r of existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : []) all.set(r.url, r);
+  for (const r of JSON.parse(buf.toString("utf8"))) all.set(r.url, r);
+  writeFileSync(file, JSON.stringify([...all.values()]));
   console.log("wrote data/out/url_check.json");
 } finally {
   await s.stop();

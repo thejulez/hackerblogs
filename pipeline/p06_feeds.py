@@ -20,6 +20,7 @@ import pyarrow.parquet as pq
 from common import WORK, args, connect, listed, log
 from dateutil import parser as dateparser
 from net import NOT_FEED, client, get, get_home, parse_home
+from rules import due
 
 PATHS = [
     "/feed",
@@ -330,8 +331,9 @@ if (WORK / "probe.parquet").exists():
 
 feed_path = WORK / "feed.parquet"
 old = pq.read_table(feed_path).cast(SCHEMA) if feed_path.exists() and not a.refresh else None
-if old is not None:  # only active feeds are cached; stale, undated and missing ones are checked again every run
-    old = old.filter(pa.compute.equal(old["status"], "ok"))
+if old is not None:  # active feeds stay cached; stale, undated and missing ones are checked again when due, about monthly
+    keep = [st == "ok" or not due(s) for s, st in zip(old.column("site").to_pylist(), old.column("status").to_pylist())]
+    old = old.filter(pa.array(keep))
 done = set(old.column("site").to_pylist()) if old is not None else set()
 todo = [(s, probes.get(s, {}), blog_path(r)) for s, r in sites.items() if s not in done]
 lg.info("%d listed sites, %d to check, %d cached", len(sites), len(todo), len(done))

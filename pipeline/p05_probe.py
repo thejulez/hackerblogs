@@ -11,6 +11,7 @@ import pyarrow.compute  # noqa: F401  (pa.compute)
 import pyarrow.parquet as pq
 from common import OUT, WORK, args, connect, log
 from net import client, get_home, parse_home
+from rules import due
 
 
 def extra(p):
@@ -65,10 +66,11 @@ async def main(sites, old):
     save(old, rows)
 
 
-old = None  # unreachable homepages (status 0) are probed again on every run
+old = None  # unreachable homepages (status 0) are probed again when due, about monthly
 if (WORK / "probe.parquet").exists():
     old = pq.read_table(WORK / "probe.parquet")
-    old = old.filter(pa.compute.greater(old["status"], 0))
+    keep = [st > 0 or not due(s) for s, st in zip(old.column("site").to_pylist(), old.column("status").to_pylist())]
+    old = old.filter(pa.array(keep))
 shards = sorted((WORK / "probe_shards").glob("*.parquet"))  # from probe_shard.py runs in parallel sandboxes
 if shards:
     fresh = pa.concat_tables([pq.read_table(f) for f in shards])

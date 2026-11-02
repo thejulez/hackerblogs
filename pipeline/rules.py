@@ -2,6 +2,8 @@
 Side-effect free, so laptop scripts can import it without the pipeline's data folders."""
 
 import re
+import zlib
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Homepage text that marks a hijacked, parked or dead domain (see data/audit/classification.md).
@@ -56,3 +58,10 @@ def blog_url(site: str, blog_path: str, final_url: str | None, status: int | Non
         moved = host.removeprefix("www.") != site.split("/", 1)[0].removeprefix("www.")
         return final_url if moved else f"{scheme}://{host}{blog_path}"
     return final_url
+
+
+def due(site: str, parts: int = 4) -> bool:
+    """Whether a site's slow recheck falls in this week: each site is due every `parts` weeks, spread evenly,
+    so weekly runs revisit dead homepages and missing feeds monthly instead of all of them every time."""
+    week = datetime.now(UTC).isocalendar().week
+    return zlib.crc32(site.encode()) % parts == week % parts
