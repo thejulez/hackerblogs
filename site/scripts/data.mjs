@@ -41,6 +41,7 @@ const KEEP = [
   "stance",
   "spark",
   "icon",
+  "url",
 ];
 
 // Page titles make poor names ("Home \\ Anthropic", "Blog - Astral", "Mailgun | Transactional Email API…"):

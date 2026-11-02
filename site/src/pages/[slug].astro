@@ -33,7 +33,7 @@ const path = (url: string) => {
     return url;
   }
 };
-const blogUrl = `https://${b.site}${b.blog_path}`;
+const blogUrl = b.url ?? `https://${b.site}${b.blog_path}`; // where the probe landed: right scheme, current domain
 const ext = icon("external", 13);
 // a short plain-language summary for readers and search engines, built from the data
 const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
@@ -136,7 +136,8 @@ const counts = {
         <strong>{b.n_mentions.toLocaleString("en")}</strong><span
           >mentions<Hint
             text="Every time this blog was linked on Hacker News: submitted as a story or linked inside a comment."
-          /></span>
+          /></span
+        >
       </div>
       {
         st && (
@@ -155,11 +156,13 @@ const counts = {
         <strong>{b.n_people.toLocaleString("en")}</strong><span
           >HN people<Hint
             text="Different Hacker News users who linked it. One person linking it many times counts once; this is how blogs are ranked."
-          /></span>
+          /></span
+        >
       </div>
       <div>
         <strong>{year(b.first_seen)}–{year(b.last_seen)}</strong><span
-          >first – last linked<Hint text="Years of the first and the most recent link on Hacker News." /></span>
+          >first – last linked<Hint text="Years of the first and the most recent link on Hacker News." /></span
+        >
       </div>
     </section>
 
@@ -345,7 +348,8 @@ const counts = {
       }
       <p class="muted small">
         <a href={`https://hn.algolia.com/?query=${encodeURIComponent(b.site)}&type=all`} rel="nofollow noopener"
-          >Search all of HN for {b.site} <Fragment set:html={ext} /></a>
+          >Search all of HN for {b.site} <Fragment set:html={ext} /></a
+        >
       </p>
     </section>
 

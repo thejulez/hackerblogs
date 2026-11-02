@@ -49,7 +49,7 @@ export function opml(title: string, list: Blog[]): string {
   const items = list
     .map(
       (b) =>
-        `    <outline type="rss" text="${xml(blogName(b))}" title="${xml(blogName(b))}" xmlUrl="${xml(b.feed_url)}" htmlUrl="${xml(`https://${b.site}`)}"/>`,
+        `    <outline type="rss" text="${xml(blogName(b))}" title="${xml(blogName(b))}" xmlUrl="${xml(b.feed_url)}" htmlUrl="${xml(b.url ?? `https://${b.site}`)}"/>`,
     )
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>

@@ -42,3 +42,17 @@ def same_blog_key(site: str, final_url: str | None) -> str:
     if ".blogspot." in host:  # name.blogspot.co.uk and name.blogspot.com are the same blog
         host = host.split(".blogspot.")[0] + ".blogspot"
     return host + u.path.rstrip("/")
+
+
+def blog_url(site: str, blog_path: str, final_url: str | None, status: int | None) -> str:
+    """The address to send readers to: where the homepage probe actually landed (right scheme, current domain),
+    keeping a company's blog section when the site did not move. Falls back to https on the HN domain."""
+    fallback = f"https://{site}{blog_path or ''}"
+    if not final_url or not final_url.startswith("http") or not status or status >= 400:
+        return fallback
+    scheme, rest = final_url.split("://", 1)
+    host = rest.split("/", 1)[0].lower()
+    if blog_path:
+        moved = host.removeprefix("www.") != site.split("/", 1)[0].removeprefix("www.")
+        return final_url if moved else f"{scheme}://{host}{blog_path}"
+    return final_url

@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from rules import SPAM, exclude_list, excluded, parked_url, same_blog_key  # noqa: E402
+from rules import SPAM, blog_url, exclude_list, excluded, parked_url, same_blog_key  # noqa: E402
 
 MIN_CONFIDENCE = 0.7  # as in common.listed()
 
@@ -41,7 +41,8 @@ drop = {
     or SPAM.search(f"{b.get('name', '')} {b.get('description', '')}")
 }
 probe = out / "to_classify.json"  # carries each site's final URL from the probe
-final = {r["site"]: r.get("final_url") for r in json.loads(probe.read_text())} if probe.exists() else {}
+probed = {r["site"]: r for r in json.loads(probe.read_text())} if probe.exists() else {}
+final = {k: r.get("final_url") for k, r in probed.items()}
 drop |= {b["site"] for b in blogs if parked_url(final.get(b["site"]))}
 blogs = [b for b in blogs if b["site"] not in drop]
 seen_blog, kept = set(), []
@@ -64,13 +65,18 @@ for b in blogs:
         b["description"] = d["description"][:200]
         by = {y["year"]: y["mentions"] for y in d["years"]}
         b["spark"] = [by.get(y, 0) for y in range(2007, datetime.now(UTC).year + 1)]
+    f = site / "blog" / f"{b['slug']}.json"
+    d = json.loads(f.read_text())
+    p = probed.get(b["site"], {})
+    # a personal site's homepage is the blog; p06's blog_path there is only where the feed was found
+    path = d.get("blog_path", "") if b["type"] == "company" else ""
+    b["url"] = d["url"] = blog_url(b["site"], path, p.get("final_url"), p.get("status"))
     s = summaries.get(b["site"])
     if not s:
+        f.write_text(json.dumps(d, ensure_ascii=False))
         continue
     n += 1
     b["why"], b["stance"] = s["why"], stance_counts(s["stances"])
-    f = site / "blog" / f"{b['slug']}.json"
-    d = json.loads(f.read_text())
     d["why"], d["stance"] = b["why"], b["stance"]
     d["praised_for"], d["criticized_for"] = s.get("praised_for", ""), s.get("criticized_for", "")
     for m in d["mentions"]:
