@@ -1,0 +1,592 @@
+---
+import { facts, meta } from "../lib/data";
+import { icon } from "../lib/icons";
+
+interface Props {
+  title: string;
+  description?: string;
+  active?: string;
+  noindex?: boolean;
+}
+// pages are built as /name.html but served as /name
+const canonical = new URL(Astro.url.pathname.replace(/\.html$/, "").replace(/\/index$/, "/"), Astro.site);
+const {
+  title,
+  description = `The ${facts.kinds} Hacker News keeps linking to, with their feeds.`,
+  active = "",
+  noindex = false,
+} = Astro.props;
+const ogImage = new URL("/og.png", Astro.site);
+
+const nav = [
+  { id: "top", href: "/top", label: "Top all-time" },
+  { id: "recommended", href: "/recommended", label: "Most recommended" },
+  { id: "rising", href: "/rising", label: "Rising" },
+  { id: "about", href: "/about", label: "About" },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:site_name" content="Hacker Blogs" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Hacker Blogs: the blogs Hacker News keeps linking to" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={ogImage} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#e8590c" />
+    {/* self-hosted Umami (analytics.neuklick.com): cookieless pageviews, only when a website id is set */}
+    {
+      import.meta.env.PUBLIC_UMAMI_ID && (
+        <script
+          is:inline
+          defer
+          src="https://analytics.neuklick.com/script.js"
+          data-website-id={import.meta.env.PUBLIC_UMAMI_ID}
+          data-domains="hackerblogs.org,www.hackerblogs.org"
+        />
+      )
+    }
+    <meta name="twitter:creator" content="@itsjulianpaul" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {
+      Astro.url.pathname.replace(/\.html$/, "").replace(/\/index$/, "/") === "/" && (
+        <script
+          type="application/ld+json"
+          set:html={JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Hacker Blogs",
+            url: Astro.site?.href,
+            description,
+            author: { "@type": "Person", name: "Julian Paul", url: "https://x.com/itsjulianpaul" },
+          })}
+        />
+      )
+    }
+    <link rel="preload" href="/icons.svg" as="image" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="masthead">
+      <header class="top">
+        <div class="wrap">
+          <a href="/" class="brand"><span class="logo"><Fragment set:html={icon("rss", 12)} /></span>Hacker Blogs</a>
+          <nav aria-label="Lists">
+            {
+              nav.map((l) => (
+                <a href={l.href} class:list={[{ on: active === l.id }]}>
+                  {l.label}
+                </a>
+              ))
+            }
+            <a href="/random" class="shuffle" title="Open a random blog" aria-label="Random blog"
+              ><Fragment set:html={icon("shuffle", 17)} /></a
+            >
+            <a
+              href="https://www.any-feeds.com/?ref=hackerblogs"
+              class="af"
+              title="any-feeds is a feed reader: follow blogs and get every new post in one place"
+              >any-feeds <Fragment set:html={icon("external", 13)} /></a
+            >
+          </nav>
+        </div>
+      </header>
+      {
+        facts.candidates > facts.classified && (
+          <div class="wip">
+            <div class="wrap">
+              <span class="dot" aria-hidden="true" />
+              <span class="t">
+                <strong>Work in progress:</strong> {facts.classified.toLocaleString("en")} of{" "}
+                {facts.candidates.toLocaleString("en")} sites checked so far, more every week · updated {facts.updated}
+              </span>
+              <a href="https://x.com/itsjulianpaul" rel="noopener">
+                Missing a blog? Tell us
+              </a>
+            </div>
+          </div>
+        )
+      }
+    </div>
+    <main><slot /></main>
+    <footer>
+      <div class="wrap">
+        <div class="foot">
+          <a href="/" class="brand small-brand"><span class="logo"><Fragment set:html={icon("rss", 10)} /></span>Hacker Blogs</a>
+          <nav class="links" aria-label="Footer">
+            <a href="/about">About</a><a href="/opml">Feed packs</a><a href="https://www.any-feeds.com/?ref=hackerblogs"
+              >any-feeds</a
+            >
+            <a href="https://x.com/itsjulianpaul" rel="me noopener">Made by Julian Paul (@itsjulianpaul)</a>
+          </nav>
+        </div>
+        <p class="credit">
+          Data: <a href="https://huggingface.co/datasets/open-index/hacker-news">open-index/hacker-news</a> (ODC-BY) and the <a
+            href="https://github.com/HackerNews/API">Hacker News API</a
+          >, through {meta.data_until?.slice(0, 10)}. Not affiliated with Y Combinator or Hacker News.
+        </p>
+      </div>
+    </footer>
+
+    <div class="tray" id="tray" hidden>
+      <span id="tray-count"></span>
+      <span id="tray-follow"></span>
+      <span class="tray-tools">
+        <button
+          type="button"
+          class="tool"
+          id="tray-opml"
+          aria-label="Download for another reader"
+          data-tip="Download as OPML for another feed reader (Feedly, NetNewsWire, Inoreader…)"
+        >
+          <Fragment set:html={icon("download", 17)} />
+        </button>
+        <button type="button" class="tool" id="tray-clear" aria-label="Clear picks" data-tip="Clear your picks">
+          <Fragment set:html={icon("x", 17)} />
+        </button>
+      </span>
+    </div>
+  </body>
+</html>
+
+<script>
+  import { initTray } from "../scripts/picks";
+  initTray();
+  // every link off Hacker Blogs opens in a new tab, including list rows rendered later
+  const external = (a: HTMLAnchorElement) => {
+    if (a.origin !== location.origin && /^https?:/.test(a.protocol)) {
+      a.target = "_blank";
+      if (!/noopener/.test(a.rel)) a.rel = `${a.rel} noopener`.trim();
+    }
+  };
+  document.querySelectorAll<HTMLAnchorElement>("a[href]").forEach(external);
+  document.addEventListener(
+    "click",
+    (e) => {
+      const a = (e.target as Element).closest?.("a[href]");
+      if (a) external(a as HTMLAnchorElement);
+    },
+    true,
+  );
+</script>
+
+<style is:global>
+  :root {
+    --bg: #fbfaf7;
+    --panel: #ffffff;
+    --fg: #1d1c1a;
+    --muted: #6b6760;
+    --line: #e6e2da;
+    --accent: #e8590c;
+    --accent-soft: #fdebdf;
+    --chip: #f1ede5;
+    --crit: #c2410c;
+    --ok: #2f9e44;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --panel: #1d1c19;
+      --fg: #ece9e3;
+      --muted: #a29d94;
+      --line: #2c2a26;
+      --accent: #ff8a3d;
+      --accent-soft: #3a2416;
+      --chip: #23211e;
+      --crit: #f08c5a;
+      --ok: #69db7c;
+    }
+  }
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    scroll-padding-top: 120px;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font:
+      16px/1.5 ui-sans-serif,
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+  a {
+    color: inherit;
+  }
+  .icon {
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: -0.15em;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--chip);
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    text-decoration: none;
+    background: var(--panel);
+    color: var(--fg);
+    cursor: pointer;
+    font: inherit;
+  }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .link {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .avatar {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 22%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+    overflow: hidden;
+  }
+  .avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--panel);
+    padding: 12%;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+    overflow-wrap: anywhere;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .wrap,
+  main {
+    width: 100%;
+    max-width: 880px;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  main {
+    flex: 1;
+    padding-bottom: 40px;
+  }
+  /* nav and status strip stay in view while the page scrolls */
+  .masthead {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+  }
+  header.top {
+    border-bottom: 1px solid var(--line);
+  }
+  header.top .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding-top: 16px;
+    padding-bottom: 12px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--accent);
+    font-size: 1.15rem;
+  }
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    border-radius: 0.24em;
+    background: var(--accent);
+    color: #fff;
+  }
+  header nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 16px;
+    font-size: 0.93rem;
+  }
+  header nav a {
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  header nav a:hover,
+  header nav a.on {
+    color: var(--fg);
+  }
+  header nav a.on {
+    font-weight: 600;
+  }
+  header nav .af {
+    color: var(--accent);
+  }
+  /* "?" hints: explanation on hover, keyboard focus or tap */
+  .hint {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--muted);
+    cursor: help;
+    vertical-align: 1px;
+    text-transform: none;
+    letter-spacing: 0;
+    outline: none;
+  }
+  .hint:hover,
+  .hint:focus-visible {
+    color: var(--fg);
+  }
+  .hint:hover::after,
+  .hint:focus::after {
+    content: attr(data-tip);
+    position: absolute;
+    z-index: 30;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(260px, 80vw);
+    white-space: normal;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--fg);
+    color: var(--bg);
+    pointer-events: none;
+  }
+  .hint.below:hover::after,
+  .hint.below:focus::after {
+    bottom: auto;
+    top: calc(100% + 6px);
+    left: auto;
+    right: -8px;
+    transform: none;
+  }
+  .wip {
+    border-bottom: 1px solid var(--line);
+    background: var(--accent-soft);
+    color: var(--fg);
+    font-size: 0.82rem;
+  }
+  .wip .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+  .wip .t {
+    flex: 1 1 320px;
+  }
+  .wip .dot {
+    flex-shrink: 0;
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .wip a {
+    margin-left: auto;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .wip a:hover {
+    text-decoration: underline;
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wip .dot {
+      animation: none;
+    }
+  }
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 24px 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  body.tray-on footer {
+    padding-bottom: 96px;
+  }
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 24px;
+  }
+  .small-brand {
+    font-size: 0.95rem;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+  .links a,
+  .credit a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .links a:hover,
+  .credit a:hover {
+    color: var(--fg);
+    text-decoration: underline;
+  }
+  .credit {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+  }
+  .tray {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+    max-width: calc(100vw - 32px);
+  }
+  .tray[hidden] {
+    display: none;
+  }
+  .tray #tray-follow {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tray-tools {
+    display: inline-flex;
+    gap: 4px;
+    padding-left: 6px;
+    border-left: 1px solid var(--line);
+  }
+  .tool {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tool:hover,
+  .tool:focus-visible {
+    background: var(--chip);
+    color: var(--fg);
+  }
+  .tool:hover::after,
+  .tool:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    width: max-content;
+    max-width: 220px;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    padding: 5px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+</style>

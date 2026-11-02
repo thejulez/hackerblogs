@@ -1,0 +1,31 @@
+---
+import Base from "../layouts/Base.astro";
+import BlogList from "../components/BlogList.astro";
+import Loved from "../components/Loved.astro";
+import { blogs, facts } from "../lib/data";
+import type { Row } from "../lib/card";
+import { recommendScore } from "../lib/stance";
+
+// ranked by a confidence bound on the recommend share (needs 30+ sampled comments), not by raw counts
+const loved = (blogs as Row[])
+  .filter((b) => recommendScore(b.stance) > 0)
+  .sort((a, b) => recommendScore(b.stance) - recommendScore(a.stance))
+  .slice(0, 12);
+---
+
+<Base
+  title="Most recommended · Hacker Blogs"
+  active="recommended"
+  description="The blogs Hacker News commenters most often call a must-read, ranked from the comments themselves, with RSS feeds to follow them."
+>
+  <BlogList
+    view="recommended"
+    title="Most recommended"
+    intro={`The blogs Hacker News readers most often recommend: comments that call a post a must-read, a favourite or the best explanation of something. Claude has judged up to ${facts.maxSample} comments for each of ${facts.summarized.toLocaleString("en")} blogs so far.`}
+  >
+    <Loved
+      rows={loved}
+      caption="Share of sampled HN comments that recommend each blog. Ranked by how sure we can be of that share, so a blog with a few glowing comments cannot outrank one with forty."
+    />
+  </BlogList>
+</Base>

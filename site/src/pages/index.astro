@@ -1,0 +1,27 @@
+---
+import Base from "../layouts/Base.astro";
+import BlogList from "../components/BlogList.astro";
+import YearChart from "../components/YearChart.astro";
+import { blogs, facts, meta } from "../lib/data";
+
+const n = blogs.length.toLocaleString("en");
+const years = (meta.years ?? []).map((y: { year: number; mentions: number; people: number }) => ({
+  year: y.year,
+  value: y.mentions,
+  tip: `${y.year}: ${y.mentions.toLocaleString("en")} links by ${y.people.toLocaleString("en")} people`,
+}));
+---
+
+<Base
+  title="Hacker Blogs: the blogs Hacker News keeps linking to"
+  active="all"
+  description={`The ${n} ${facts.kinds} Hacker News keeps linking to, ranked by how many different people linked them, with every HN comment and RSS feed.`}
+>
+  <BlogList
+    view="all"
+    title="Hacker Blogs"
+    intro={`The ${n} ${facts.kinds} Hacker News keeps linking to, ranked by how many different people linked them in stories and comments. Follow any of them in one click.`}
+  >
+    <YearChart years={years} caption="Links to these blogs on Hacker News per year" />
+  </BlogList>
+</Base>

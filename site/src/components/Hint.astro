@@ -1,0 +1,10 @@
+---
+/** A small "?" that explains a term on hover, focus or tap. */
+interface Props {
+  text: string;
+  below?: boolean;
+}
+const { text, below = false } = Astro.props;
+---
+
+<span class:list={["hint", { below }]} tabindex="0" role="note" aria-label={text} data-tip={text}>?</span>

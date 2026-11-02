@@ -1,0 +1,49 @@
+---
+import Base from "../layouts/Base.astro";
+import BlogList from "../components/BlogList.astro";
+import RankBars from "../components/RankBars.astro";
+import RisingMap from "../components/RisingMap.astro";
+import { blogs } from "../lib/data";
+import type { Row } from "../lib/card";
+
+// biggest risers: growth in HN links, the last two calendar years (this one included) against the two before
+const y = new Date().getFullYear();
+const top = (blogs as Row[])
+  .filter((b) => (b.spark?.length ?? 0) >= 4)
+  .map((b) => {
+    const s = b.spark!,
+      recent = s.at(-1)! + s.at(-2)!,
+      before = s.at(-3)! + s.at(-4)!;
+    return { b, recent, before, growth: recent - before };
+  })
+  .filter((r) => r.growth > 0)
+  .sort((a, b) => b.growth - a.growth)
+  .slice(0, 10)
+  .map(({ b, recent, before, growth }) => ({
+    b,
+    value: growth,
+    tip: `${recent} links in ${y - 1}–${y} against ${before} in ${y - 3}–${y - 2}`,
+  }));
+---
+
+<Base
+  title="Rising · Hacker Blogs"
+  active="rising"
+  description="The blogs Hacker News links to now: ranked by how many different people linked them in the last two years, plus the biggest risers."
+>
+  <BlogList
+    view="rising"
+    title="Rising"
+    intro="What Hacker News links to now: blogs ranked by how many different people linked them in the last two years, whatever their history."
+  >
+    <RisingMap rows={blogs as Row[]} />
+    <div class="gap"></div>
+    <RankBars rows={top} caption={`Biggest risers: more HN links in ${y - 1}–${y} than in ${y - 3}–${y - 2}`} unit="more links" />
+  </BlogList>
+</Base>
+
+<style>
+  .gap {
+    height: 18px;
+  }
+</style>

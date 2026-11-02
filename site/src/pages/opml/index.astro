@@ -1,0 +1,38 @@
+---
+import Base from "../../layouts/Base.astro";
+import { blogs, topics } from "../../lib/data";
+const active = blogs.filter((b) => b.status === "ok" || b.status === "undated");
+---
+
+<Base
+  title="Feed packs · Hacker Blogs"
+  description="OPML feed packs of the blogs Hacker News links to, by topic and list, for any feed reader."
+>
+  <h1>Feed packs for other readers</h1>
+  <p class="muted">
+    Import a pack into any feed reader. On any-feeds, upload it in the bulk tab of Add feeds. Packs skip blogs with no posts in
+    two years and blogs without a feed. To build your own, press Follow on the blogs you want and use “Download for another
+    reader”.
+  </p>
+  <ul>
+    <li><a href="/opml/top-100.opml" download>Top 100</a> <span class="muted">({Math.min(100, active.length)} feeds)</span></li>
+    {
+      topics.map((t) => (
+        <li>
+          <a href={`/opml/${t}.opml`} download>
+            {t}
+          </a>{" "}
+          <span class="muted">({active.filter((b) => b.topics.includes(t)).length} feeds)</span>
+        </li>
+      ))
+    }
+  </ul>
+</Base>
+<style>
+  h1 {
+    margin-top: 28px;
+  }
+  li {
+    margin: 6px 0;
+  }
+</style>

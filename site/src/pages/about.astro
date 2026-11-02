@@ -1,0 +1,300 @@
+---
+import Base from "../layouts/Base.astro";
+import { blogs, facts, meta, topics } from "../lib/data";
+import YearChart from "../components/YearChart.astro";
+import Bars from "../components/Bars.astro";
+import TopicTrends from "../components/TopicTrends.astro";
+import type { Row } from "../lib/card";
+
+const fmt = (n: number) => n.toLocaleString("en");
+const perYear = (key: (b: (typeof blogs)[number]) => string | null | undefined) => {
+  const m = new Map<number, number>();
+  for (const b of blogs) {
+    const y = Number(key(b)?.slice(0, 4));
+    if (y >= 1995 && y <= new Date().getFullYear()) m.set(y, (m.get(y) ?? 0) + 1); // some feeds carry dates like year 1
+  }
+  const ys = [...m.keys()].sort();
+  return ys.length
+    ? Array.from({ length: ys.at(-1)! - ys[0] + 1 }, (_, i) => ys[0] + i).map((year) => ({ year, value: m.get(year) ?? 0 }))
+    : [];
+};
+const links = (meta.years ?? []).map((y: { year: number; mentions: number; people: number }) => ({
+  year: y.year,
+  value: y.mentions,
+  tip: `${y.year}: ${fmt(y.mentions)} links by ${fmt(y.people)} people`,
+}));
+const discovered = perYear((b) => b.first_seen).map((y) => ({ ...y, tip: `${y.year}: ${fmt(y.value)} blogs first linked` }));
+const lastPost = perYear((b) => b.last_post_at).map((y) => ({ ...y, tip: `${y.year}: ${fmt(y.value)} blogs last posted` }));
+const topicRows = topics
+  .map((t) => ({ label: t, value: blogs.filter((x) => x.topics.includes(t)).length, href: `/topic/${t}` }))
+  .sort((a, b) => b.value - a.value);
+const rows = blogs as Row[];
+const totalLinks = rows.reduce((s, b) => s + b.n_mentions, 0);
+const byPeople = [...rows].sort((a, b) => b.n_people - a.n_people);
+const share = (k: number) => Math.round((byPeople.slice(0, k).reduce((s, b) => s + b.n_mentions, 0) / totalLinks) * 100);
+const concentration = [10, 100, 1000]
+  .filter((k) => k < rows.length)
+  .map((k) => ({ label: `Top ${fmt(k)} blogs`, value: share(k) }));
+const status = [
+  { key: "ok", label: "Posting (last 2 years)", n: rows.filter((b) => b.status === "ok").length },
+  { key: "undated", label: "Feed without dates", n: rows.filter((b) => b.status === "undated").length },
+  { key: "stale", label: "Quiet for 2+ years", n: rows.filter((b) => b.status === "stale").length },
+  { key: "none", label: "No feed found", n: rows.filter((b) => b.status === "none").length },
+];
+const recent = rows.filter((b) => b.people_2y > 0).length;
+const tiles = [
+  [fmt(blogs.length), "blogs listed"],
+  [fmt(totalLinks), "links on Hacker News"],
+  [fmt(blogs.filter((b) => b.status !== "none").length), "with a working feed"],
+  [fmt(recent), "linked in the last 2 years"],
+  [fmt(blogs.filter((b) => b.hn_author).length), "authors found on HN"],
+  [fmt(facts.summarized), "summarised by Claude"],
+];
+const trendTopics = topicRows.slice(0, 8).map((r) => r.label);
+
+const X = "https://x.com/itsjulianpaul";
+const AF = "https://www.any-feeds.com/?ref=hackerblogs";
+---
+
+<Base
+  title="About · Hacker Blogs"
+  active="about"
+  description="How Hacker Blogs finds, classifies and ranks the blogs Hacker News links to: data sources, method, crawler and who made it."
+>
+  <article class="about">
+    <h1>About</h1>
+    <p>
+      Hacker Blogs lists the {facts.kinds} that Hacker News keeps linking to, ranked by how many <em>different</em> people linked them
+      in stories and comments, so one enthusiastic fan can't move a blog up. Made by <a href={X} rel="me noopener">Julian Paul</a
+      >; corrections and missing blogs to <a href={X} rel="me noopener">@itsjulianpaul</a>.
+    </p>
+
+    <h2>Work in progress</h2>
+    <p>
+      {facts.candidates.toLocaleString("en")} sites have been linked by at least {facts.candidateMin} different people. {
+        facts.classified.toLocaleString("en")
+      } of them are checked so far, most-linked first, and each update adds more. A blog you expected may simply not be checked yet.
+    </p>
+
+    <h2>Following</h2>
+    <p>
+      Press <strong>Follow</strong> on the blogs you want, then <strong>Follow on any-feeds</strong> to read them in <a href={AF}
+        >any-feeds</a
+      >, a feed reader, up to 10 at a time. Using another reader? Copy a blog's feed from its page, or “Download for another
+      reader” to get your picks as an OPML file. Topic packs are on the <a href="/opml">feed packs page</a>.
+    </p>
+
+    <h2>How it's built</h2>
+    <ol>
+      <li>Every story URL and every link in a comment across Hacker News history.</li>
+      <li>
+        Every site linked by at least {facts.candidateMin} different people, minus news sites, platforms, code hosts and docs.
+      </li>
+      <li>
+        Claude classifies each from its homepage and the HN titles that linked it; spam, parked and low-confidence sites are left
+        out.
+      </li>
+      <li>A crawler finds and checks each blog's feed. Blogs without one are listed as “no feed”.</li>
+      <li>Claude reads up to {facts.maxSample} HN comments per blog for the summary and the recommendation verdict.</li>
+      <li>If one of a blog's most frequent linkers has an HN profile that links to it, they're shown as its likely author.</li>
+    </ol>
+
+    <h2 id="crawler">The crawler</h2>
+    <p>
+      <code>HackerBlogsBot</code> fetches a listed site's homepage, favicon and feed when the directory is refreshed, to check the
+      blog and its feed still work: at most two requests at a time per site, no JavaScript, nothing behind logins. To have your site
+      left out, message <a href={X} rel="me noopener">@itsjulianpaul</a>.
+    </p>
+
+    <h2 id="method">How “recommended” is judged</h2>
+    <p>
+      Claude marks each sampled comment as <strong>recommends</strong> (endorses the writing: a must-read, a favourite, the best explanation),
+      <strong>critical</strong> (says the writing is wrong or poor) or <strong>neutral</strong> (cites it without judging). Citing
+      a post approvingly is neutral; so are the author's own comments and criticism of the topic rather than the writing. At most three
+      comments come from one thread.
+    </p>
+    <p>
+      Reasons (“Recommended for”, “Criticised for”) must cite the comments they come from. Verdicts are shown as bands (often,
+      sometimes, rarely recommended) and only from 30 sampled comments, criticism only from three critical ones. The Most
+      recommended list ranks by a 95% lower confidence bound. These rules came from a hand audit of 1,200 comments; judgements are
+      still automatic and can be wrong.
+    </p>
+
+    <h2>Data</h2>
+    <div class="tiles">
+      {
+        tiles.map(([n, l]) => (
+          <div>
+            <>
+              <strong>{n}</strong>
+              <span>{l}</span>
+            </>
+          </div>
+        ))
+      }
+    </div>
+    <div class="charts">
+      <div class="card"><YearChart years={links} caption="Links to these blogs on Hacker News, per year" /></div>
+      <div class="card"><TopicTrends rows={rows} topics={trendTopics} /></div>
+      <div class="two">
+        <div class="card">
+          <Bars
+            rows={concentration}
+            caption="How concentrated attention is: share of all links that went to the most-linked blogs"
+            unit="%"
+            max={100}
+          />
+        </div>
+        <div class="card">
+          <figure class="status">
+            <figcaption class="muted small">Are they still writing? Every listed blog by the state of its feed</figcaption>
+            <div class="stack" role="img" aria-label={status.map((s) => `${s.label}: ${s.n}`).join(", ")}>
+              {
+                status.map(
+                  (s) => s.n > 0 && <span class={`seg ${s.key}`} style={`flex:${s.n}`} title={`${s.label}: ${fmt(s.n)}`} />,
+                )
+              }
+            </div>
+            <ul>
+              {
+                status.map((s) => (
+                  <li>
+                    <i class={`seg ${s.key}`} />
+                    {s.label}
+                    <strong>{fmt(s.n)}</strong>
+                  </li>
+                ))
+              }
+            </ul>
+          </figure>
+        </div>
+      </div>
+      <div class="card"><YearChart years={discovered} caption="Blogs by the year HN first linked them" /></div>
+      <div class="card">
+        <YearChart years={lastPost} caption="Blogs by the year of their latest post (blogs with a dated feed)" />
+      </div>
+      <div class="card"><Bars rows={topicRows} caption="Blogs per topic (a blog can have up to three)" /></div>
+    </div>
+    <p class="muted small">
+      All numbers are computed from the listed data when the site is built. Data through {meta.data_until?.slice(0, 10)}.
+    </p>
+    <p class="muted small">
+      Data: <a href="https://huggingface.co/datasets/open-index/hacker-news">open-index/hacker-news</a> (ODC-BY) and the <a
+        href="https://github.com/HackerNews/API">Hacker News API</a
+      >. Comment excerpts link back to Hacker News; favicons belong to their sites. Not affiliated with Y Combinator or Hacker
+      News.
+    </p>
+  </article>
+</Base>
+<style>
+  .about {
+    padding-top: 22px;
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: 1.6rem;
+  }
+  h2 {
+    font-size: 1.1rem;
+    margin-top: 28px;
+  }
+  li {
+    margin: 4px 0;
+  }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 560px) {
+    .tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .tiles div {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 10px 14px;
+  }
+  .tiles strong {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+  .tiles span {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .charts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .two {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .status {
+    margin: 0;
+  }
+  .status figcaption {
+    margin-bottom: 8px;
+  }
+  .stack {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .status ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.84rem;
+  }
+  .status li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  .status li strong {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .status i {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  .seg.ok {
+    background: var(--ok);
+  }
+  .seg.undated {
+    background: var(--accent);
+    opacity: 0.5;
+  }
+  .seg.stale {
+    background: var(--muted);
+    opacity: 0.6;
+  }
+  .seg.none {
+    background: var(--line);
+  }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 14px 16px 10px;
+  }
+</style>

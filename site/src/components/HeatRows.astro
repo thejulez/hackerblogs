@@ -1,0 +1,163 @@
+---
+/**
+ * One row per blog, one cell per year: how a blog's HN links rose and fell. Sequential single hue (the accent),
+ * each row scaled to its own peak so the shape of every blog's life shows. Hover a cell for the number.
+ */
+import { avatar, type Row } from "../lib/card";
+import { blogName } from "../lib/data";
+
+interface Props {
+  rows: Row[];
+  from?: number;
+  caption: string;
+}
+const { rows, from = 2007, caption } = Astro.props;
+const years = (rows[0]?.spark ?? []).map((_, i) => from + i);
+const steps = [0.12, 0.3, 0.5, 0.72, 1]; // opacity steps light to dark
+const level = (v: number, max: number) => (v <= 0 ? 0 : steps[Math.min(steps.length - 1, Math.floor((v / max) * steps.length))]);
+---
+
+{
+  years.length > 0 && (
+    <figure class="heat">
+      <figcaption class="muted small">{caption}</figcaption>
+      <div class="grid" style={`--n:${years.length}`}>
+        {rows.map((b) => {
+          const vals = b.spark ?? [];
+          const max = Math.max(1, ...vals);
+          return (
+            <>
+              <a class="who" href={`/${b.slug}`}>
+                <Fragment set:html={avatar(b, 18)} />
+                <span>{blogName(b as any)}</span>
+              </a>
+              {vals.map((v, i) => (
+                <span
+                  class="cell"
+                  tabindex="0"
+                  style={`--o:${level(v, max)}`}
+                  data-tip={`${blogName(b as any)} · ${years[i]}: ${v.toLocaleString("en")} links`}
+                />
+              ))}
+            </>
+          );
+        })}
+        <span class="spacer" />
+        {years.map((y, i) => (
+          <span class="yr muted">{i === 0 || y % 5 === 0 || i === years.length - 1 ? `’${String(y).slice(2)}` : ""}</span>
+        ))}
+      </div>
+      <p class="legend muted small">
+        <span>fewer</span>
+        {steps.map((o) => (
+          <i style={`--o:${o}`} />
+        ))}
+        <span>more links that year, relative to the blog's own peak</span>
+      </p>
+    </figure>
+  )
+}
+
+<style>
+  .heat {
+    margin: 0;
+  }
+  figcaption {
+    margin-bottom: 8px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(110px, 26%) repeat(var(--n), minmax(0, 1fr));
+    gap: 3px;
+    align-items: center;
+  }
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    text-decoration: none;
+    font-size: 0.84rem;
+    padding-right: 6px;
+  }
+  .who span:last-child {
+    line-height: 1.2;
+    overflow-wrap: break-word;
+  }
+  .who:hover span:last-child {
+    text-decoration: underline;
+  }
+  .cell {
+    position: relative;
+    height: 18px;
+    border-radius: 3px;
+    background: var(--chip);
+    outline: none;
+  }
+  .cell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    background: var(--accent);
+    opacity: var(--o);
+  }
+  .cell:hover::after,
+  .cell:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    z-index: 2;
+    white-space: nowrap;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .yr {
+    font-size: 0.68rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 8px 0 0;
+    flex-wrap: wrap;
+  }
+  .legend i {
+    position: relative;
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--chip);
+  }
+  .legend i::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: var(--o);
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+      row-gap: 2px;
+    }
+    .who {
+      grid-column: 1 / -1;
+      margin-top: 6px;
+    }
+    .spacer {
+      display: none;
+    }
+    .cell {
+      height: 14px;
+    }
+  }
+</style>

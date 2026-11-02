@@ -1,0 +1,105 @@
+---
+/**
+ * Small multiples: each topic's share of all links to listed blogs, per year. One hue, one shared y-scale across
+ * the panels so shares compare honestly. A blog can carry up to three topics, so shares add up to more than 100%.
+ */
+import { icon, topicIcon } from "../lib/icons";
+import type { Row } from "../lib/card";
+
+interface Props {
+  rows: Row[];
+  topics: string[];
+  from?: number;
+  minYear?: number;
+}
+const { rows, topics, from = 2007, minYear = 2009 } = Astro.props;
+const n = Math.max(0, ...rows.map((b) => b.spark?.length ?? 0));
+const years = Array.from({ length: n }, (_, i) => from + i);
+const total = years.map((_, i) => rows.reduce((s, b) => s + (b.spark?.[i] ?? 0), 0));
+const start = Math.max(0, years.indexOf(minYear)); // early years are too thin for shares to mean much
+const panels = topics.map((t) => {
+  const tagged = rows.filter((b) => b.topics.includes(t));
+  const share = years.map((_, i) => (total[i] ? (tagged.reduce((s, b) => s + (b.spark?.[i] ?? 0), 0) / total[i]) * 100 : 0));
+  return { t, share: share.slice(start) };
+});
+const shown = years.slice(start);
+const max = Math.max(1, ...panels.flatMap((p) => p.share));
+const pct = (v: number) => `${v < 10 ? v.toFixed(1) : Math.round(v)}%`;
+---
+
+<figure class="tt">
+  <figcaption class="muted small">
+    Share of all links that went to each topic, {shown[0]}–{shown.at(-1)} (same scale in every panel)
+  </figcaption>
+  <div class="panels">
+    {
+      panels.map(({ t, share }) => (
+        <a class="panel" href={`/topic/${t}`}>
+          <div class="head">
+            <span>
+              <Fragment set:html={icon(topicIcon(t), 13)} /> {t}
+            </span>
+            <span class="muted">
+              {pct(share[0])} → <strong>{pct(share.at(-1)!)}</strong>
+            </span>
+          </div>
+          <div class="cols">
+            {share.map((v, i) => (
+              <span class="c" style={`height:${Math.max(2, (v / max) * 100)}%`} title={`${t}, ${shown[i]}: ${pct(v)} of links`} />
+            ))}
+          </div>
+        </a>
+      ))
+    }
+  </div>
+</figure>
+
+<style>
+  .tt {
+    margin: 0;
+  }
+  figcaption {
+    margin-bottom: 8px;
+  }
+  .panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+  .panel:hover {
+    border-color: var(--muted);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .head strong {
+    color: var(--fg);
+  }
+  .cols {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 46px;
+    border-bottom: 1px solid var(--line);
+  }
+  .c {
+    flex: 1;
+    min-width: 0;
+    background: var(--accent);
+    opacity: 0.85;
+    border-radius: 2px 2px 0 0;
+  }
+</style>

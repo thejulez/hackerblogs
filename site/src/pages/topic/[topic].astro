@@ -1,0 +1,24 @@
+---
+import Base from "../../layouts/Base.astro";
+import BlogList from "../../components/BlogList.astro";
+import { blogs, topics } from "../../lib/data";
+
+export function getStaticPaths() {
+  return topics.map((topic) => ({ params: { topic } }));
+}
+const { topic } = Astro.params;
+const n = blogs.filter((b) => b.topics.includes(topic!)).length;
+---
+
+<Base
+  title={`${topic[0].toUpperCase()}${topic.slice(1)} blogs · Hacker Blogs`}
+  active={`topic:${topic}`}
+  description={`${n.toLocaleString("en")} ${topic} blogs that Hacker News keeps linking to, ranked by how many people linked them, with RSS feeds.`}
+>
+  <BlogList
+    view="topic"
+    topic={topic}
+    title={`${topic[0].toUpperCase()}${topic.slice(1)}`}
+    intro={`${n.toLocaleString("en")} blogs on ${topic} that Hacker News keeps linking to.`}
+  />
+</Base>

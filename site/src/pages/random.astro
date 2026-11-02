@@ -1,0 +1,16 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="A random blog · Hacker Blogs" noindex>
+  <p class="muted" style="padding-top:24px">Picking a random blog…</p>
+</Base>
+<script>
+  // one of the 1,000 best-loved blogs, new pick on every visit
+  fetch("/data/blogs.json")
+    .then((r) => r.json())
+    .then((rows: { slug: string }[]) => {
+      const pool = rows.slice(0, 1000);
+      location.replace(`/${pool[Math.floor(Math.random() * pool.length)].slug}`);
+    });
+</script>

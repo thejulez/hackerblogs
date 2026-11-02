@@ -1,0 +1,182 @@
+---
+/**
+ * Loved vs debated: one 100% bar per blog splitting its sampled HN comments into recommend (green),
+ * only cite it (neutral, light) and critical (orange). The recommend share is the headline number.
+ * Three parts, so a legend; critical is only drawn from MIN_CRITICAL comments up.
+ */
+import { avatar, type Row } from "../lib/card";
+import { blogName } from "../lib/data";
+import { MIN_CRITICAL } from "../lib/stance";
+
+interface Props {
+  rows: Row[];
+  caption: string;
+}
+const { rows, caption } = Astro.props;
+const data = rows.map((b) => {
+  const s = b.stance!,
+    n = s.recommend + s.neutral + s.critical;
+  // below MIN_CRITICAL critical comments are mostly labelling noise: count them as citing
+  const crit = s.critical >= MIN_CRITICAL ? s.critical : 0;
+  const pct = (v: number) => (v / n) * 100;
+  return { b, s, n, crit, rec: pct(s.recommend), cri: pct(crit), neu: pct(n - s.recommend - crit) };
+});
+---
+
+<figure class="loved">
+  <div class="top">
+    <figcaption class="muted small">{caption}</figcaption>
+    <a class="method small" href="/about#method">How this is judged</a>
+  </div>
+  <p class="legend small muted">
+    <span><i class="rec"></i>recommends it</span><span><i class="neu"></i>only mentions it</span><span
+      ><i class="crit"></i>critical ({MIN_CRITICAL}+ comments)</span
+    >
+  </p>
+  <ol>
+    {
+      data.map(({ b, s, n, crit, rec, neu, cri }, i) => (
+        <li>
+          <a
+            href={`/${b.slug}`}
+            title={`${s.recommend} recommend, ${n - s.recommend - crit} only mention it${crit ? `, ${crit} critical` : ""}, of ${n} sampled comments`}
+          >
+            <span class="rank">{i + 1}</span>
+            <span class="who">
+              <Fragment set:html={avatar(b, 18)} />
+              <span class="n">{blogName(b as any)}</span>
+            </span>
+            <span class="bar" aria-hidden="true">
+              <span class="rec" style={`width:${rec}%`} />
+              <span class="neu" style={`width:${neu}%`} />
+              {cri > 0 && <span class="crit" style={`width:${cri}%`} />}
+            </span>
+            <span class="v">
+              <strong>{Math.round(rec)}%</strong>{" "}
+              <span class="muted">
+                {s.recommend} of {n}
+              </span>
+            </span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .loved {
+    margin: 0;
+  }
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 2px 12px;
+    margin-bottom: 4px;
+  }
+  .method {
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .method:hover {
+    text-decoration: underline;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 0 0 8px;
+  }
+  .legend i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 5px;
+    vertical-align: -1px;
+  }
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  li > a {
+    display: grid;
+    grid-template-columns: 1.4em minmax(130px, 30%) 1fr 7.5em;
+    align-items: center;
+    gap: 10px;
+    padding: 4px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.86rem;
+  }
+  li > a:hover {
+    background: var(--chip);
+  }
+  .rank {
+    color: var(--muted);
+    font-size: 0.76rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .n {
+    line-height: 1.25;
+    overflow-wrap: break-word;
+  }
+  .bar {
+    display: flex;
+    height: 12px;
+    border-radius: 4px;
+    overflow: hidden;
+    gap: 2px;
+  }
+  .bar > span {
+    display: block;
+    height: 100%;
+  }
+  .rec,
+  .legend .rec {
+    background: var(--ok);
+  }
+  .neu,
+  .legend .neu {
+    background: var(--line);
+  }
+  .crit,
+  .legend .crit {
+    background: var(--crit);
+  }
+  .v {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .v .muted {
+    font-size: 0.74rem;
+  }
+  @media (max-width: 560px) {
+    /* name on its own line above the bar */
+    li > a {
+      grid-template-columns: 1.4em 1fr 6.5em;
+      row-gap: 3px;
+    }
+    .who {
+      grid-column: 2 / -1;
+    }
+    .bar {
+      grid-column: 2;
+    }
+  }
+</style>

@@ -1,0 +1,10 @@
+duckdb==2.0.0
+pyarrow==26.0.0
+httpx[http2]==0.28.1
+h2==4.4.1
+selectolax==1.0.2
+feedparser==6.0.14
+huggingface_hub==2.4.0
+pytz==2026.6
+python-dateutil==2.9.0.post0
+pillow==11.3.0

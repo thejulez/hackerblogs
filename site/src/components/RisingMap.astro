@@ -1,0 +1,293 @@
+---
+/**
+ * Blogs with a real recent audience as dots: all-time people (x) against people in the last two years (y), both log scales.
+ * Dots where at least half of all linkers are recent are the risers: accent colour and named; the rest are muted.
+ * Hover snaps to the nearest dot, so small dots are easy to read; click opens the blog.
+ */
+import type { Row } from "../lib/card";
+import { blogName } from "../lib/data";
+
+interface Props {
+  rows: Row[];
+  label?: number;
+  min?: number;
+}
+const { rows, label = 14, min = 10 } = Astro.props;
+
+const W = 800,
+  H = 420,
+  L = 52,
+  R = 16,
+  T = 14,
+  B = 40;
+const pts = rows.filter((b) => b.people_2y >= min && b.n_people > 0);
+const rising = (b: Row) => b.people_2y * 2 >= b.n_people;
+const xmax = Math.max(...pts.map((b) => b.n_people)),
+  ymax = Math.max(...pts.map((b) => b.people_2y));
+const xmin = min,
+  ymin = min;
+const lx = (v: number) => L + ((Math.log10(v) - Math.log10(xmin)) / (Math.log10(xmax) - Math.log10(xmin))) * (W - L - R);
+const ly = (v: number) => H - B - ((Math.log10(v) - Math.log10(ymin)) / (Math.log10(ymax) - Math.log10(ymin))) * (H - T - B);
+const ticks = (max: number, lo: number) => [10, 30, 100, 300, 1000, 3000, 10000].filter((t) => t >= lo && t <= max);
+// the boundary: half of all linkers in the last two years
+const a = Math.max(xmin, ymin * 2),
+  z = Math.min(xmax, ymax * 2);
+const half = { x1: lx(a), y1: ly(a / 2), x2: lx(z), y2: ly(z / 2) };
+// name the biggest risers, skipping any label that would collide with one already placed
+const placed: { x: number; y: number; w: number }[] = [];
+const named = pts
+  .filter(rising)
+  .sort((a, b) => b.people_2y - a.people_2y)
+  .filter((b) => {
+    const x = lx(b.n_people) - 7,
+      y = ly(b.people_2y),
+      w = blogName(b as any).length * 6.4;
+    if (placed.length >= label || x - w < L || placed.some((p) => Math.abs(p.y - y) < 13 && x - w < p.x && x > p.x - p.w))
+      return false;
+    placed.push({ x, y, w });
+    return true;
+  });
+const fmt = (n: number) => n.toLocaleString("en");
+const nRising = pts.filter(rising).length;
+const left = rows.length - pts.length;
+---
+
+<figure class="rm">
+  <figcaption class="muted small">
+    Blogs with at least {min} people linking them in the last two years. Orange: at least half of everyone who ever linked the blog
+    did so in the last two years ({fmt(nRising)} blogs). Hover for numbers, click to open.
+  </figcaption>
+  <div class="wrap">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`Scatter of ${pts.length} blogs, all-time people against people in the last two years; ${nRising} rising`}
+    >
+      {
+        ticks(xmax, xmin).map((t) => (
+          <g class="grid">
+            <>
+              <line x1={lx(t)} x2={lx(t)} y1={T} y2={H - B} />
+              <text x={lx(t)} y={H - B + 16} text-anchor="middle">
+                {fmt(t)}
+              </text>
+            </>
+          </g>
+        ))
+      }
+      {
+        ticks(ymax, ymin).map((t) => (
+          <g class="grid">
+            <>
+              <line x1={L} x2={W - R} y1={ly(t)} y2={ly(t)} />
+              <text x={L - 8} y={ly(t) + 4} text-anchor="end">
+                {fmt(t)}
+              </text>
+            </>
+          </g>
+        ))
+      }
+      <text class="axis" x={(L + W - R) / 2} y={H - 6} text-anchor="middle">people who linked it, all-time</text>
+      <text class="axis" x={14} y={(T + H - B) / 2} text-anchor="middle" transform={`rotate(-90 14 ${(T + H - B) / 2})`}
+        >last 2 years</text
+      >
+      <g class="ref"><line {...half}></line><text x={half.x2 - 4} y={half.y2 + 16} text-anchor="end">half recent</text></g>
+      <g class="dots">
+        {
+          [...pts]
+            .sort((a, b) => Number(rising(a)) - Number(rising(b)))
+            .map((b) => (
+              <circle
+                class:list={[{ hot: rising(b) }]}
+                cx={lx(b.n_people).toFixed(1)}
+                cy={ly(b.people_2y).toFixed(1)}
+                r={rising(b) ? 4 : 3}
+                data-slug={b.slug}
+                data-tip={`${blogName(b as any)} · ${fmt(b.people_2y)} in the last 2 years · ${fmt(b.n_people)} all-time`}
+              />
+            ))
+        }
+      </g>
+      {
+        named.map((b) => (
+          <text class="name" x={lx(b.n_people) - 7} y={ly(b.people_2y) + 4} text-anchor="end">
+            {blogName(b as any)}
+          </text>
+        ))
+      }
+      <circle class="focus" r="6" visibility="hidden"></circle>
+    </svg>
+    <div class="tip" hidden></div>
+  </div>
+  <p class="muted small note">
+    <span class="key hot"></span> rising <span class="key"></span> the rest
+    {
+      left > 0 && (
+        <>
+          {" "}
+          · {fmt(left)} blogs with fewer than {min} recent linkers are left out (they are in the list below).
+        </>
+      )
+    }
+  </p>
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".rm .wrap").forEach((wrap) => {
+    const svg = wrap.querySelector("svg")!,
+      tip = wrap.querySelector<HTMLElement>(".tip")!;
+    const focus = svg.querySelector<SVGCircleElement>(".focus")!;
+    const dots = [...svg.querySelectorAll<SVGCircleElement>(".dots circle")].map((c) => ({
+      c,
+      x: +c.getAttribute("cx")!,
+      y: +c.getAttribute("cy")!,
+    }));
+    let near: (typeof dots)[number] | null = null;
+    // nearest dot within 18 screen pixels of the pointer
+    svg.addEventListener("pointermove", (e) => {
+      const m = svg.getScreenCTM();
+      if (!m) return;
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+      const lim = (18 / m.a) ** 2;
+      near = null;
+      let best = lim;
+      for (const d of dots) {
+        const dd = (d.x - p.x) ** 2 + (d.y - p.y) ** 2;
+        if (dd < best) {
+          best = dd;
+          near = d;
+        }
+      }
+      if (!near) {
+        tip.hidden = true;
+        focus.setAttribute("visibility", "hidden");
+        svg.style.cursor = "";
+        return;
+      }
+      focus.setAttribute("cx", String(near.x));
+      focus.setAttribute("cy", String(near.y));
+      focus.setAttribute("visibility", "visible");
+      svg.style.cursor = "pointer";
+      tip.textContent = near.c.dataset.tip!;
+      const w = wrap.getBoundingClientRect(),
+        r = near.c.getBoundingClientRect();
+      tip.style.left = `${Math.max(0, Math.min(r.left - w.left - 20, w.width - 270))}px`;
+      tip.style.top = `${r.top - w.top - 36}px`;
+      tip.hidden = false;
+    });
+    svg.addEventListener("pointerleave", () => {
+      tip.hidden = true;
+      focus.setAttribute("visibility", "hidden");
+      near = null;
+    });
+    svg.addEventListener("click", () => {
+      if (near) location.href = `/${near.c.dataset.slug}`;
+    });
+  });
+</script>
+
+<style>
+  .rm {
+    margin: 0;
+  }
+  figcaption {
+    margin-bottom: 6px;
+  }
+  .wrap {
+    position: relative;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+  .grid line {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .grid text,
+  .axis {
+    fill: var(--muted);
+    font-size: 11px;
+  }
+  .ref line {
+    stroke: var(--muted);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+    opacity: 0.7;
+  }
+  .ref text {
+    fill: var(--muted);
+    font-size: 11px;
+  }
+  .dots circle {
+    fill: var(--muted);
+    fill-opacity: 0.28;
+  }
+  .dots circle.hot {
+    fill: var(--accent);
+    fill-opacity: 0.75;
+    stroke: var(--panel);
+    stroke-width: 1;
+  }
+  .focus {
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 2;
+    pointer-events: none;
+  }
+  .name {
+    fill: var(--fg);
+    font-size: 11px;
+    font-weight: 600;
+    paint-order: stroke;
+    stroke: var(--panel);
+    stroke-width: 3px;
+    pointer-events: none;
+  }
+  .tip {
+    position: absolute;
+    z-index: 3;
+    max-width: 270px;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .note {
+    margin: 6px 0 0;
+  }
+  .key {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.5;
+    margin: 0 2px 0 6px;
+    vertical-align: 0;
+  }
+  .key.hot {
+    background: var(--accent);
+    opacity: 1;
+    margin-left: 0;
+  }
+  @media (max-width: 560px) {
+    /* the chart scales down to about half: enlarge its text, keep only the top few names */
+    .grid text,
+    .axis,
+    .ref text {
+      font-size: 22px;
+    }
+    .name {
+      font-size: 20px;
+    }
+    .name:nth-of-type(n + 8) {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,26 @@
+---
+import Base from "../layouts/Base.astro";
+import BlogList from "../components/BlogList.astro";
+import HeatRows from "../components/HeatRows.astro";
+import { blogs, facts } from "../lib/data";
+import type { Row } from "../lib/card";
+
+const top = (blogs as Row[])
+  .slice()
+  .sort((a, b) => b.n_people - a.n_people)
+  .slice(0, 12);
+---
+
+<Base
+  title="Top all-time · Hacker Blogs"
+  active="top"
+  description={`The personal and company blogs the most different Hacker News users have linked to since 2006, ranked, with their RSS feeds.`}
+>
+  <BlogList
+    view="top"
+    title="Top all-time"
+    intro={`Every blog ranked by how many different Hacker News users linked to it since ${facts.firstYear}, in submitted stories and in comments. One fan linking a blog a hundred times counts once.`}
+  >
+    <HeatRows rows={top} caption="The twelve most-linked blogs, year by year: when HN read them most" />
+  </BlogList>
+</Base>

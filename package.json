@@ -1,0 +1,14 @@
+{
+  "name": "hackerblogs",
+  "private": true,
+  "description": "The blogs Hacker News keeps linking to",
+  "scripts": {
+    "format": "prettier --write . && uvx ruff@0.14.3 format pipeline classify site/scripts",
+    "lint": "prettier --check . && uvx ruff@0.14.3 check pipeline classify site/scripts"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "prettier-plugin-astro": "0.14.1"
+  },
+  "packageManager": "pnpm@10.18.0"
+}

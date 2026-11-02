@@ -1,0 +1,83 @@
+---
+/** Horizontal labelled bars for one measure (a single series: no legend, the caption names it). */
+interface Props {
+  rows: { label: string; value: number; href?: string }[];
+  caption: string;
+  unit?: string;
+  max?: number;
+}
+const { rows, caption, unit = "" } = Astro.props;
+const max = Astro.props.max ?? Math.max(1, ...rows.map((r) => r.value)); // pass max={100} for percentages
+---
+
+<figure class="bars">
+  <figcaption class="muted small">{caption}</figcaption>
+  <ol>
+    {
+      rows.map((r) => {
+        const inner = (
+          <>
+            <span class="l">{r.label}</span>
+            <span class="track">
+              <span class="bar" style={`width:${Math.max(1, Math.round((r.value / max) * 100))}%`} />
+            </span>
+            <span class="v">
+              {r.value.toLocaleString("en")}
+              {unit && <span class="muted">{unit === "%" ? unit : ` ${unit}`}</span>}
+            </span>
+          </>
+        );
+        return <li>{r.href ? <a href={r.href}>{inner}</a> : <div>{inner}</div>}</li>;
+      })
+    }
+  </ol>
+</figure>
+
+<style>
+  .bars {
+    margin: 0;
+  }
+  figcaption {
+    margin-bottom: 6px;
+  }
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  a,
+  li > div {
+    display: grid;
+    grid-template-columns: minmax(90px, 24%) 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.86rem;
+  }
+  a:hover {
+    background: var(--chip);
+  }
+  .track {
+    height: 10px;
+  }
+  .bar {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+    opacity: 0.85;
+  }
+  a:hover .bar {
+    opacity: 1;
+  }
+  .v {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 0.82rem;
+  }
+</style>

@@ -1,0 +1,16 @@
+{
+  "name": "hackerblogs-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "data": "node scripts/data.mjs && python3 scripts/og.py",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "vercel-output": "node scripts/vercel-output.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.4.4",
+    "lucide": "^1.66.0"
+  }
+}

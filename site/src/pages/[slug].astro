@@ -1,0 +1,707 @@
+---
+import Base from "../layouts/Base.astro";
+import { blogs, blogName, bySlug, day, detail, HN } from "../lib/data";
+import { avatar, type Row } from "../lib/card";
+import { icon, topicIcon } from "../lib/icons";
+import YearChart from "../components/YearChart.astro";
+import Hint from "../components/Hint.astro";
+import { band, showCritical } from "../lib/stance";
+
+export function getStaticPaths() {
+  return blogs.map((b) => ({ params: { slug: b.slug } }));
+}
+const b = detail(Astro.params.slug!);
+const name = blogName(b);
+// every year from the first link to the last, so gaps show as gaps
+const yearRange = b.years.length
+  ? Array.from({ length: b.years.at(-1)!.year - b.years[0].year + 1 }, (_, i) => b.years[0].year + i)
+  : [];
+const byYear = new Map(b.years.map((y) => [y.year, y]));
+const chartYears = yearRange.map((year) => {
+  const y = byYear.get(year);
+  return { year, value: y?.mentions ?? 0, tip: y ? `${year}: ${y.mentions} links by ${y.people} people` : `${year}: no links` };
+});
+const year = (iso: string | null) => (iso ? iso.slice(0, 4) : "");
+const st = b.stance;
+const stTotal = st ? st.recommend + st.neutral + st.critical : 0;
+const u = b.author_profile;
+const path = (url: string) => {
+  try {
+    const x = new URL(url);
+    return x.pathname + x.search;
+  } catch {
+    return url;
+  }
+};
+const blogUrl = `https://${b.site}${b.blog_path}`;
+const ext = icon("external", 13);
+// a short plain-language summary for readers and search engines, built from the data
+const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
+const about = b.topics.filter((t) => t !== "other");
+const topPost = b.posts.find((p) => p.title)?.title;
+const intro = [
+  b.type === "company"
+    ? `${name} is the company blog at ${b.site}${about.length ? `, writing about ${list(about)}` : ""}.`
+    : b.author && b.name && !b.name.includes(b.author) && !b.name.includes(b.site)
+      ? `${b.author} writes ${b.name}, a personal blog at ${b.site}${about.length ? ` about ${list(about)}` : ""}.`
+      : b.author
+        ? `${b.author}'s personal blog at ${b.site}${about.length ? ` covers ${list(about)}` : ""}.`
+        : `${name} is a personal blog at ${b.site}${about.length ? ` about ${list(about)}` : ""}.`,
+  `Since ${year(b.first_seen)}, ${b.n_people.toLocaleString("en")} different Hacker News readers have linked it ${b.n_mentions.toLocaleString("en")} times${topPost ? `, most often “${topPost}”` : ""}.`,
+  b.status === "ok"
+    ? `It is still writing: the last post was on ${day(b.last_post_at)}, and you can follow it by feed.`
+    : b.status === "stale"
+      ? `The last post was in ${year(b.last_post_at)}, but the archive is still widely read.`
+      : b.status === "undated"
+        ? "It has a working feed you can follow."
+        : "No feed was found, so read it on the site itself.",
+].join(" ");
+const stBand = band(st);
+const showCrit = showCritical(st);
+const counts = {
+  all: b.mentions.length + b.n_more,
+  recommend: b.mentions.filter((m) => m.stance === "recommend").length,
+  critical: b.mentions.filter((m) => m.stance === "critical").length,
+  story: b.mentions.filter((m) => m.kind === "story").length,
+};
+---
+
+<Base title={`${name}${b.author && b.author !== name ? "" : ` (${b.site})`} · Hacker Blogs`} description={intro}>
+  <article class="detail">
+    <p class="crumb muted small"><a href="/top">Top all-time</a> · #{b.rank}</p>
+    <div class="title">
+      <Fragment set:html={avatar({ ...b, icon: bySlug.get(b.slug)?.icon } as unknown as Row, 32)} />
+      <h1>{name}</h1>
+    </div>
+    <p class="by muted">
+      {b.type === "company" ? "Company blog" : "Personal blog"} · <a href={blogUrl} rel="nofollow noopener"
+        >{b.site}{b.blog_path.replace(/\/$/, "")}</a
+      >
+      {
+        b.hn_author && (
+          <>
+            {" "}
+            · on HN as <a href={`${HN}/user?id=${encodeURIComponent(b.hn_author)}`}>{b.hn_author}</a>
+          </>
+        )
+      }
+      {
+        b.topics.map((t) => (
+          <a class="chip" href={`/topic/${t}`}>
+            <Fragment set:html={icon(topicIcon(t), 12)} />
+            {t}
+          </a>
+        ))
+      }
+    </p>
+    <p class="intro">{intro}</p>
+
+    <div class="ctas">
+      {
+        b.feed_url ? (
+          <button
+            type="button"
+            class="btn primary"
+            data-pick={JSON.stringify({ slug: b.slug, name, feed: b.feed_url, site: b.site })}
+            id="follow"
+          >
+            <>
+              <svg class="icon" width="16" height="16" aria-hidden="true">
+                <use href="/icons.svg#i-plus" />
+              </svg>
+              <span class="label">Follow</span>
+            </>
+          </button>
+        ) : (
+          <span class="btn off" title="The crawler found no RSS, Atom or JSON feed on this site">
+            No feed found
+          </span>
+        )
+      }
+      <a class="btn" href={blogUrl} rel="nofollow noopener">Visit the blog <Fragment set:html={ext} /></a>
+      {
+        b.feed_url && (
+          <button type="button" class="btn" id="copy" data-feed={b.feed_url}>
+            <>
+              <Fragment set:html={icon("rss", 14)} />
+              <span>Copy feed URL</span>
+            </>
+          </button>
+        )
+      }
+    </div>
+
+    <section class="stats">
+      <div>
+        <strong>{b.n_mentions.toLocaleString("en")}</strong><span
+          >mentions<Hint
+            text="Every time this blog was linked on Hacker News: submitted as a story or linked inside a comment."
+          /></span>
+      </div>
+      {
+        st && (
+          <div>
+            <>
+              <strong>{st.recommend}</strong>
+              <span>
+                recommend
+                <Hint text="Comments in Claude's sample that explicitly recommend the writing (must-read, favourite, best explanation). Citing a post is not counted." />
+              </span>
+            </>
+          </div>
+        )
+      }
+      <div>
+        <strong>{b.n_people.toLocaleString("en")}</strong><span
+          >HN people<Hint
+            text="Different Hacker News users who linked it. One person linking it many times counts once; this is how blogs are ranked."
+          /></span>
+      </div>
+      <div>
+        <strong>{year(b.first_seen)}–{year(b.last_seen)}</strong><span
+          >first – last linked<Hint text="Years of the first and the most recent link on Hacker News." /></span>
+      </div>
+    </section>
+
+    {
+      chartYears.length > 1 && (
+        <section class="timeline">
+          <YearChart years={chartYears} caption="Links on Hacker News per year" height={110} />
+        </section>
+      )
+    }
+
+    {
+      st && stTotal > 0 && (
+        <div class="stance-wrap">
+          {stBand ? (
+            <p class={`band ${stBand.key}`}>
+              <strong>{stBand.label}</strong>
+              <span class="muted">
+                {" "}
+                · {st.recommend} of {stTotal} sampled comments recommend it{showCrit && <>, {st.critical} are critical</>}
+              </span>
+              <Hint text="Claude read up to 40 HN comments linking here and marked each as recommending, critical or neutral (citing without judging). Shown as a band because a sample this size is only accurate to about ±14 points." />
+            </p>
+          ) : (
+            <p class="muted small">
+              Too few sampled comments ({stTotal}) to say how often HN recommends it.
+              <Hint text="Recommendation bands need at least 30 sampled comments." />
+            </p>
+          )}
+        </div>
+      )
+    }
+
+    {
+      b.why && (
+        <section class="why">
+          <h2>Why HN links it</h2>
+          <p>{b.why}</p>
+          {(b.praised_for || (b.criticized_for && showCrit)) && (
+            <dl class="reasons">
+              {b.praised_for && (
+                <div>
+                  <dt>
+                    <i class="dot rec" />
+                    Recommended for{st && st.recommend > 0 && <span class="muted"> · {st.recommend} comments</span>}
+                  </dt>
+                  <dd>{b.praised_for}</dd>
+                </div>
+              )}
+              {b.criticized_for && showCrit && (
+                <div>
+                  <dt>
+                    <i class="dot crit" />
+                    Criticised for<span class="muted"> · {st!.critical} comments</span>
+                  </dt>
+                  <dd>{b.criticized_for}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          <p class="muted small">
+            Summarised by Claude from a sample of {stTotal || "the"} HN comments that link here. Each comment is marked
+            recommending, critical or neutral (citing without judging); <a href="/about#method">how this works</a>.
+          </p>
+        </section>
+      )
+    }
+
+    {b.description && <p class="desc">{b.description}</p>}
+
+    {
+      u && (
+        <section class="author">
+          <h2>
+            The author on HN
+            <Hint text="An HN account whose public profile links to this blog, so probably its author." />
+          </h2>
+          <p>
+            <a href={`${HN}/user?id=${encodeURIComponent(u.id)}`}>{u.id}</a>
+            <span class="muted">
+              {" "}
+              · {(u.karma ?? 0).toLocaleString("en")} karma{u.created && <> · member since {year(u.created)}</>}
+            </span>
+          </p>
+          {u.about && <blockquote>{u.about}</blockquote>}
+          <p class="muted small">From their public HN profile, which links to this site.</p>
+        </section>
+      )
+    }
+
+    {
+      b.posts.length > 0 && (
+        <section>
+          <h2>
+            Most-linked posts
+            <Hint text="The posts on this blog that the most different HN users linked to." />
+          </h2>
+          <ol class="posts">
+            {b.posts.map((p) => (
+              <li>
+                <a href={p.url} rel="nofollow noopener">
+                  {p.title || path(p.url)}
+                </a>
+                <div class="muted small">
+                  {p.people} people · {p.mentions} mentions · first linked {day(p.first)}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )
+    }
+
+    <section>
+      <h2>
+        What Hacker News says<Hint
+          text="Stories and comments that link this blog, most-discussed threads first. Recommends and Critical come from Claude's reading of each comment."
+        />
+      </h2>
+      <div class="tabs" role="tablist">
+        <button type="button" class="pill" aria-pressed="true" data-f="all">All</button>
+        {
+          counts.recommend > 0 && (
+            <button type="button" class="pill" aria-pressed="false" data-f="recommend">
+              Recommends
+            </button>
+          )
+        }
+        {
+          counts.story > 0 && (
+            <button type="button" class="pill" aria-pressed="false" data-f="story">
+              Submitted stories
+            </button>
+          )
+        }
+      </div>
+      <ol class="mentions" id="mentions">
+        {
+          b.mentions.map((m) => (
+            <li data-kind={m.kind} data-stance={m.stance ?? ""}>
+              <div class="who small">
+                <a href={`${HN}/user?id=${encodeURIComponent(m.by)}`} class="user">
+                  {m.by}
+                </a>
+                <span class="muted">
+                  {" "}
+                  · <a href={`${HN}/item?id=${m.id}`}>{day(m.date)}</a>
+                </span>
+                {m.stance === "recommend" && <span class="tag recommend">Recommends</span>}
+              </div>
+              {m.kind === "story" ? (
+                <p class="what">
+                  Submitted{" "}
+                  <a href={m.url} rel="nofollow noopener">
+                    {m.title || path(m.url)}
+                  </a>{" "}
+                  as a story · {m.points ?? 0} points
+                </p>
+              ) : (
+                <>
+                  {m.snippet && <blockquote>{m.snippet}</blockquote>}
+                  <p class="what small muted">
+                    Comment linking{" "}
+                    <a href={m.url} rel="nofollow noopener">
+                      {path(m.url)}
+                    </a>
+                  </p>
+                </>
+              )}
+              <a class="ctx small" href={`${HN}/item?id=${m.id}`}>
+                {m.kind === "story" ? "HN discussion" : `on “${m.title || "a thread"}”`} <Fragment set:html={ext} />
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+      {
+        b.n_more > 0 && (
+          <button class="btn" id="more" data-slug={b.slug}>
+            Show {b.n_more} more
+          </button>
+        )
+      }
+      <p class="muted small">
+        <a href={`https://hn.algolia.com/?query=${encodeURIComponent(b.site)}&type=all`} rel="nofollow noopener"
+          >Search all of HN for {b.site} <Fragment set:html={ext} /></a>
+      </p>
+    </section>
+
+    {
+      b.related.some((r) => bySlug.has(r.slug)) && (
+        <section>
+          <h2>
+            Linked by the same people
+            <Hint text="Blogs that share the most HN linkers with this one, relative to their size." />
+          </h2>
+          <ul class="related">
+            {b.related
+              .filter((r) => bySlug.has(r.slug))
+              .map((r) => {
+                const o = bySlug.get(r.slug);
+                return (
+                  <li>
+                    <a href={`/${r.slug}`}>
+                      {o && <Fragment set:html={avatar(o as unknown as Row, 28)} />}
+                      <span>
+                        <strong>{o ? blogName(o) : r.site}</strong>
+                        <span class="muted small">{r.site}</span>
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
+      )
+    }
+  </article>
+</Base>
+
+<script>
+  import { bindPickButtons } from "../scripts/picks";
+  const HN = "https://news.ycombinator.com";
+
+  bindPickButtons();
+
+  const copy = document.getElementById("copy") as HTMLButtonElement | null;
+  copy?.addEventListener("click", async () => {
+    const label = copy.querySelector("span")!;
+    await navigator.clipboard.writeText(copy.dataset.feed!);
+    label.textContent = "Copied";
+    setTimeout(() => (label.textContent = "Copy feed URL"), 1500);
+  });
+
+  // filter tabs
+  const ol = document.getElementById("mentions")!;
+  let filter = "all";
+  const applyFilter = () => {
+    ol.querySelectorAll<HTMLLIElement>("li").forEach((li) => {
+      li.hidden = !(filter === "all" || (filter === "story" ? li.dataset.kind === "story" : li.dataset.stance === filter));
+    });
+  };
+  document.querySelectorAll<HTMLButtonElement>(".tabs .pill").forEach((t) =>
+    t.addEventListener("click", () => {
+      filter = t.dataset.f!;
+      document.querySelectorAll(".tabs .pill").forEach((x) => x.setAttribute("aria-pressed", String(x === t)));
+      applyFilter();
+    }),
+  );
+
+  // "show more": render the rest from /data/mentions/<slug>.json with DOM nodes (no HTML from data)
+  type M = {
+    id: number;
+    kind: string;
+    by: string;
+    date: string | null;
+    title: string;
+    points: number | null;
+    url: string;
+    snippet: string;
+    stance?: string;
+  };
+  function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+  const link = (href: string, text: string, cls = "") => {
+    const a = el("a", cls, text);
+    a.href = href;
+    return a;
+  };
+  const path = (u: string) => {
+    try {
+      const x = new URL(u);
+      return x.pathname + x.search;
+    } catch {
+      return u;
+    }
+  };
+  const more = document.getElementById("more") as HTMLButtonElement | null;
+  more?.addEventListener("click", async () => {
+    more.disabled = true;
+    const rows: M[] = await (await fetch(`/data/mentions/${more.dataset.slug}.json`)).json();
+    for (const m of rows) {
+      const li = el("li");
+      li.dataset.kind = m.kind;
+      li.dataset.stance = m.stance ?? "";
+      const who = el("div", "who small");
+      who.append(link(`${HN}/user?id=${encodeURIComponent(m.by)}`, m.by, "user"));
+      const d = el("span", "muted", " · ");
+      d.append(link(`${HN}/item?id=${m.id}`, (m.date ?? "").slice(0, 10)));
+      who.append(d);
+      if (m.stance === "recommend") who.append(el("span", "tag recommend", "Recommends"));
+      li.append(who);
+      if (m.kind === "story") {
+        const p = el("p", "what", "Submitted ");
+        p.append(link(m.url, m.title || path(m.url)), ` as a story · ${m.points ?? 0} points`);
+        li.append(p);
+      } else {
+        if (m.snippet) li.append(el("blockquote", "", m.snippet));
+        const p = el("p", "what small muted", "Comment linking ");
+        p.append(link(m.url, path(m.url)));
+        li.append(p);
+      }
+      li.append(
+        link(`${HN}/item?id=${m.id}`, m.kind === "story" ? "HN discussion ↗" : `on “${m.title || "a thread"}” ↗`, "ctx small"),
+      );
+      ol.append(li);
+    }
+    more.remove();
+    applyFilter();
+  });
+</script>
+
+<style>
+  .detail {
+    padding-top: 22px;
+  }
+  .crumb {
+    margin: 0 0 6px;
+  }
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.15;
+  }
+  .by {
+    margin: 6px 0 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+  }
+  .by .chip {
+    margin-left: 4px;
+    color: var(--muted);
+  }
+  .intro {
+    margin: 0 0 16px;
+    font-size: 1.02rem;
+    max-width: 72ch;
+  }
+  .ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #follow.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .btn.off {
+    color: var(--muted);
+    border-style: dashed;
+    cursor: default;
+  }
+  .ctas {
+    margin-bottom: 16px;
+  }
+  .timeline {
+    margin-top: 16px;
+  }
+  h2 {
+    font-size: 1.05rem;
+    margin: 28px 0 8px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 12px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 0;
+  }
+  .stats div {
+    display: flex;
+    flex-direction: column;
+  }
+  .stats strong {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+  .stats span {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .stance-wrap {
+    margin-top: 14px;
+  }
+  .band {
+    margin: 0;
+  }
+  .band.often strong {
+    color: var(--ok);
+  }
+  .crit {
+    background: var(--crit);
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  .why p {
+    margin: 4px 0;
+  }
+  .reasons {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .reasons div {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 8px 12px;
+  }
+  .reasons dt {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .reasons dd {
+    margin: 2px 0 0;
+  }
+  .topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 16px 0 8px;
+  }
+  .desc {
+    margin: 8px 0;
+  }
+  .posts,
+  .related {
+    padding-left: 1.3em;
+  }
+  .posts li {
+    margin: 8px 0;
+    overflow-wrap: anywhere;
+  }
+  .related {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .related a {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: var(--panel);
+  }
+  .related a > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .related a > span > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .pill {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--fg);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .pill[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .mentions {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .mentions :global(li) {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .mentions :global(.user) {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .mentions :global(.tag) {
+    margin-left: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .mentions :global(.tag.recommend) {
+    color: var(--ok);
+  }
+  .mentions :global(.what) {
+    margin: 4px 0;
+    overflow-wrap: anywhere;
+  }
+  .mentions :global(.ctx) {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .mentions :global(.ctx:hover) {
+    color: var(--fg);
+    text-decoration: underline;
+  }
+  :global(blockquote) {
+    margin: 6px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--line);
+    font-size: 0.93rem;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+  #more {
+    margin-top: 14px;
+  }
+</style>

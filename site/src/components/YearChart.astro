@@ -1,0 +1,118 @@
+---
+/** Column chart of one value per year, with a hover/focus tooltip per column. One series: no legend, the caption names it. */
+interface Props {
+  years: { year: number; value: number; tip: string }[];
+  caption: string;
+  height?: number;
+}
+const { years, caption, height = 120 } = Astro.props;
+const max = Math.max(1, ...years.map((y) => y.value));
+const peak = years.reduce((a, b) => (b.value > a.value ? b : a), years[0]);
+const fmt = (n: number) => n.toLocaleString("en");
+// label every year when there is room, else every 5th plus the last
+const label = (i: number, y: number) => years.length <= 14 || y % 5 === 0 || i === years.length - 1;
+---
+
+{
+  years.length > 0 && (
+    <figure class="yc">
+      <figcaption class="muted small">
+        {caption}{" "}
+        <span class="peak">
+          · peak {fmt(peak.value)} in {peak.year}
+        </span>
+      </figcaption>
+      <div
+        class="plot"
+        style={`height:${height}px`}
+        role="img"
+        aria-label={`${caption}: ${years.map((y) => `${y.year} ${fmt(y.value)}`).join(", ")}`}
+      >
+        {years.map((y) => (
+          <div class="col" tabindex="0" data-tip={y.tip}>
+            <div class="bar" style={`height:${Math.max(2, Math.round((y.value / max) * 100))}%`} />
+          </div>
+        ))}
+      </div>
+      <div class="axis muted" aria-hidden="true">
+        {years.map((y, i) => (
+          <span>{label(i, y.year) ? `’${String(y.year).slice(2)}` : ""}</span>
+        ))}
+      </div>
+    </figure>
+  )
+}
+
+<style>
+  .yc {
+    margin: 0;
+    min-width: 0;
+  }
+  figcaption {
+    margin-bottom: 6px;
+  }
+  .plot {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    border-bottom: 1px solid var(--line);
+  }
+  .col {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    outline: none;
+  }
+  .bar {
+    width: 100%;
+    background: var(--accent);
+    border-radius: 4px 4px 0 0;
+    opacity: 0.85;
+  }
+  .col:hover .bar,
+  .col:focus-visible .bar {
+    opacity: 1;
+  }
+  .col:hover::after,
+  .col:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    white-space: nowrap;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .col:first-child:hover::after,
+  .col:first-child:focus-visible::after {
+    left: 0;
+    transform: none;
+  }
+  .col:last-child:hover::after,
+  .col:last-child:focus-visible::after {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+  .axis {
+    display: flex;
+    gap: 2px;
+    font-size: 0.68rem;
+    margin-top: 3px;
+  }
+  .axis span {
+    flex: 1;
+    text-align: center;
+    overflow: visible;
+    white-space: nowrap;
+  }
+</style>

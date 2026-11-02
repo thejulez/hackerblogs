@@ -1,0 +1,114 @@
+---
+/** Horizontal bars for a top-N list: name on the left, bar, value on the right. Each row links to the blog. */
+import { avatar, type Row } from "../lib/card";
+import { blogName } from "../lib/data";
+
+interface Props {
+  rows: { b: Row; value: number; tip: string }[];
+  caption: string;
+  unit: string;
+}
+const { rows, caption, unit } = Astro.props;
+const max = Math.max(1, ...rows.map((r) => r.value));
+// show the site next to names that appear more than once (one author, two blogs)
+const names = rows.map((r) => blogName(r.b as any));
+const twice = new Set(names.filter((n, i) => names.indexOf(n) !== i));
+---
+
+{
+  rows.length > 0 && (
+    <figure class="rb">
+      <figcaption class="muted small">{caption}</figcaption>
+      <ol>
+        {rows.map(({ b, value, tip }) => (
+          <li>
+            <a href={`/${b.slug}`} title={tip}>
+              <span class="who">
+                <Fragment set:html={avatar(b, 20)} />
+                <span class="n">
+                  {blogName(b as any)}
+                  {twice.has(blogName(b as any)) && <span class="muted"> · {b.site}</span>}
+                </span>
+              </span>
+              <span class="track">
+                <span class="bar" style={`width:${Math.max(1, Math.round((value / max) * 100))}%`} />
+              </span>
+              <span class="v">
+                {value.toLocaleString("en")} <span class="muted">{unit}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </figure>
+  )
+}
+
+<style>
+  .rb {
+    margin: 0;
+  }
+  figcaption {
+    margin-bottom: 6px;
+  }
+  ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  a {
+    display: grid;
+    grid-template-columns: minmax(120px, 30%) 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 4px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.86rem;
+  }
+  a:hover {
+    background: var(--chip);
+  }
+  .who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .n {
+    line-height: 1.25;
+    overflow-wrap: break-word;
+  }
+  .track {
+    height: 10px;
+  }
+  .bar {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 0 4px 4px 0;
+    opacity: 0.85;
+  }
+  a:hover .bar {
+    opacity: 1;
+  }
+  .v {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 0.82rem;
+  }
+  @media (max-width: 560px) {
+    /* name on its own line above the bars */
+    a {
+      grid-template-columns: 1fr auto;
+      row-gap: 3px;
+      padding: 4px;
+    }
+    .who {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

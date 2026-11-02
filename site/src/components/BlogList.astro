@@ -1,0 +1,464 @@
+---
+/**
+ * A list view: heading, intro, a chart (slot), one box with the search (placeholder carries the total) and the filter
+ * menus with counts, topic pills, the list and "show more". The first page is rendered here; the browser takes over with /data/blogs.json.
+ */
+import { blogs, topics } from "../lib/data";
+import { card, type Row } from "../lib/card";
+import { icon, topicIcon } from "../lib/icons";
+import Hint from "./Hint.astro";
+import { ACTIVITY, FEED, order, SINCE, TYPE, type View } from "../lib/views";
+
+interface Props {
+  view: View;
+  title: string;
+  intro: string;
+  topic?: string;
+}
+const { view, title, intro, topic = "" } = Astro.props;
+
+const rows = blogs as Row[];
+const listed = order(rows, view, { topic });
+const first = listed.slice(0, 30);
+const now = Date.now();
+const count = (f: (b: Row) => boolean) => listed.filter(f).length;
+// options: [value, label in the menu, short label on the closed button, count]
+type Opt = [string, string, string, number | null];
+const SHORT: Record<string, string> = {
+  "activity:": "Any activity",
+  "activity:30d": "Last 30 days",
+  "activity:6m": "Last 6 months",
+  "activity:1y": "Last year",
+  "activity:2y": "Last 2 years",
+  "activity:inactive": "Inactive",
+  "feed:": "Any feed",
+  "feed:with": "With feed",
+  "feed:without": "Without feed",
+  "type:": "Personal & company",
+  "type:personal": "Personal",
+  "type:company": "Company",
+  "since:": "Linked: any time",
+  "since:2015": "Since 2015",
+  "since:2020": "Since 2020",
+  "since:2025": "Since 2025",
+};
+const opts = (name: string, list: [string, string, (b: Row, now: number) => boolean][]): Opt[] =>
+  list.map(([v, l, f]) => [v, l, SHORT[`${name}:${v}`] ?? l, count((b) => f(b, now))]);
+const sortFirst = view === "recommended" ? "Most recommended" : view === "rising" ? "Most recent people" : "Most people";
+const menus: { name: string; options: Opt[] }[] = [
+  { name: "activity", options: opts("activity", ACTIVITY) },
+  { name: "feed", options: opts("feed", FEED) },
+  { name: "type", options: opts("type", TYPE) },
+  { name: "since", options: opts("since", SINCE) },
+  {
+    name: "sort",
+    options: [
+      ["", `Sort: ${sortFirst.toLowerCase()}`, `Sort: ${sortFirst.toLowerCase()}`, null],
+      ["top", "Most people", "Sort: most people", null],
+      ["recommended", "Most recommended", "Sort: recommended", null],
+      ["rising", "Most people in the last 2 years", "Sort: rising", null],
+      ["recent", "Recently linked", "Sort: recent", null],
+    ],
+  },
+];
+const topicCount = Object.fromEntries(topics.map((t) => [t, listed.filter((b) => b.topics.includes(t)).length]));
+const pills = [...topics].sort((a, b) => topicCount[b] - topicCount[a]);
+---
+
+<section class="head">
+  <h1>{title}</h1>
+  <p class="muted">{intro}</p>
+</section>
+
+{
+  Astro.slots.has("default") && (
+    <section class="chart">
+      <slot />
+    </section>
+  )
+}
+
+<div class="controls" id="controls" data-view={view} data-topic={topic}>
+  <div class="finder">
+    <label class="q">
+      <Fragment set:html={icon("search", 18)} />
+      <input
+        id="q"
+        type="search"
+        placeholder={`Search ${listed.length.toLocaleString("en")} blogs, authors, topics`}
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search blogs"
+      />
+      <Hint
+        below
+        text="Search matches names, sites, authors, topics and summaries; every word must match. Filters below: Activity is the date of the newest post in the feed, Feed is whether one was found, Linked is the year HN first linked the blog. Numbers show how many blogs match."
+      />
+      <button type="button" id="q-clear" class="clear" aria-label="Clear search" hidden
+        ><Fragment set:html={icon("x", 16)} /></button
+      >
+    </label>
+    {
+      !topic && (
+        <div class="pills" role="group" aria-label="Topics">
+          {pills.map((t) => (
+            <button type="button" class="pill" data-topic={t} aria-pressed="false">
+              <Fragment set:html={icon(topicIcon(t), 14)} />
+              {t}
+              <span class="c">{topicCount[t].toLocaleString("en")}</span>
+            </button>
+          ))}
+        </div>
+      )
+    }
+    <div class="menus">
+      {
+        menus.map((m) => (
+          <details class="menu" data-name={m.name}>
+            <summary>
+              <>
+                <span class="current">{m.options[0][2]}</span>
+                <Fragment set:html={icon("chevron", 14)} />
+              </>
+            </summary>
+            <div class="options" role="listbox" aria-label={m.options[0][1]}>
+              {m.options.map(([v, l, short, c], i) => (
+                <button type="button" role="option" data-value={v} data-short={short} aria-selected={i === 0 ? "true" : "false"}>
+                  <span class="l">{l}</span>
+                  {c !== null && <span class="c">{c.toLocaleString("en")}</span>}
+                </button>
+              ))}
+            </div>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<ol class="cards" id="list" set:html={first.map((b) => card(b)).join("")} />
+<p class="empty muted" id="empty" hidden>No blogs match these filters.</p>
+<button type="button" class="btn more" id="more" hidden={listed.length <= 30}>Show more</button>
+
+<script>
+  import { initList } from "../scripts/list";
+  initList();
+</script>
+
+<style>
+  .head {
+    padding-top: 22px;
+  }
+  .head h1 {
+    font-size: 1.6rem;
+    margin: 0;
+    line-height: 1.2;
+  }
+  .head p {
+    margin: 4px 0 14px;
+    max-width: 72ch;
+  }
+  .chart {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 14px 16px 10px;
+    margin-bottom: 16px;
+  }
+  .controls {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  /* one box: the search on top, the filter bar attached below it */
+  .finder {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .finder:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .q {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 10px 14px;
+    color: var(--muted);
+    cursor: text;
+  }
+  .q input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 1rem;
+    color: var(--fg);
+    padding: 2px 0;
+  }
+  .q input::placeholder {
+    color: var(--muted);
+    opacity: 0.8;
+  }
+  .q input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .clear:hover {
+    background: var(--chip);
+    color: var(--fg);
+  }
+  .finder {
+    position: relative;
+    z-index: 4;
+  }
+  .finder .pills {
+    border-top: 1px solid var(--line);
+    padding: 10px 12px;
+  }
+  .finder .menus {
+    border-top: 1px solid var(--line);
+    padding: 8px 10px;
+    flex-wrap: wrap;
+  }
+  .menu summary {
+    white-space: nowrap;
+  }
+  /* the menus share the bar's width */
+  .finder .menus .menu {
+    flex: 1 1 150px;
+  }
+  .q :global(.hint) {
+    margin: 0;
+  }
+  .finder .menus .menu summary {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--fg);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 0.84rem;
+    cursor: pointer;
+  }
+  .pill:hover {
+    border-color: var(--muted);
+  }
+  .pill .c,
+  .options .c {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .pill[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .pill[aria-pressed="true"] .c {
+    color: #fff;
+    opacity: 0.85;
+  }
+  .pill.zero {
+    opacity: 0.45;
+  }
+  .menus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .menu {
+    position: relative;
+  }
+  .menu summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.86rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .menu summary:hover {
+    border-color: var(--muted);
+  }
+  .menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .menu[open] summary,
+  .menu.set summary {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .options {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+    display: flex;
+    flex-direction: column;
+  }
+  .options button {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    text-align: left;
+    white-space: nowrap;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.86rem;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .options button:hover {
+    background: var(--chip);
+  }
+  .options button[aria-selected="true"] .l {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .cards {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .cards :global(.card) {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .cards :global(.who) {
+    text-decoration: none;
+  }
+  .cards :global(.body) {
+    flex: 1;
+    min-width: 0;
+  }
+  .cards :global(.name) {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .cards :global(.name:hover) {
+    text-decoration: underline;
+  }
+  .cards :global(.site) {
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+  }
+  .cards :global(.why) {
+    margin: 3px 0 4px;
+    font-size: 0.92rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cards :global(.meta) {
+    font-size: 0.82rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+  }
+  .cards :global(.meta .chip) {
+    color: var(--muted);
+  }
+  .cards :global(.spark) {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .cards :global(.pick) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--fg);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .cards :global(.pick.on) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .cards :global(.pick.off) {
+    color: var(--muted);
+    cursor: default;
+    border-style: dashed;
+  }
+  .more {
+    display: block;
+    margin: 18px auto;
+  }
+  .empty {
+    padding: 24px 0;
+  }
+  @media (max-width: 560px) {
+    .cards :global(.pick .label) {
+      display: none;
+    }
+    /* topics become one swipeable row instead of a wall of pills */
+    .finder .pills {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+    }
+    .finder .pills::-webkit-scrollbar {
+      display: none;
+    }
+    .pill {
+      flex-shrink: 0;
+    }
+  }
+</style>
