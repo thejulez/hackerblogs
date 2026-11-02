@@ -12,10 +12,12 @@ import json
 import os
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from common import OUT, WORK, args, log
 from net import client, get
 from PIL import Image
+from rules import due
 
 ICON_TYPES = ("image/", "application/octet-stream")
 
@@ -47,8 +49,11 @@ def to_png(data: bytes, dest: Path, size: int = 32) -> bool:
 
 async def fetch(c, sem, b) -> bool:
     host = b["site"].split("/")[0]
+    final = urlsplit(b.get("url") or "").netloc or host  # the blog may have moved (brainpickings -> themarginalian)
+    urls = [f"https://{h}/favicon.ico" for h in dict.fromkeys((final, host))]
+    urls += [f"https://{final}/apple-touch-icon.png", f"https://icons.duckduckgo.com/ip3/{final}.ico"]
     async with sem:
-        for url in (f"https://{host}/favicon.ico", f"https://icons.duckduckgo.com/ip3/{host}.ico"):
+        for url in urls:
             res = await get(c, url, max_bytes=200_000)
             if res and res[0] == 200 and res[2].lower().startswith(ICON_TYPES) and len(res[3]) > 50:
                 if to_png(res[3], cache / f"{b['slug']}.png"):
@@ -63,7 +68,8 @@ async def main(todo):
 
 
 blogs = json.loads((OUT / "site" / "blogs.json").read_text())
-skip = set(json.loads(missing.read_text())) if missing.exists() else set()
+# sites without an icon are tried again when due (about monthly), with the newer fallbacks
+skip = {s for s in json.loads(missing.read_text()) if not due(s)} if missing.exists() else set()
 todo = [b for b in blogs if not (cache / f"{b['slug']}.png").exists() and b["site"] not in skip]
 lg.info("%d blogs, %d icons to fetch", len(blogs), len(todo))
 if todo:

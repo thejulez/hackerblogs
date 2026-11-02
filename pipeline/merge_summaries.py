@@ -70,6 +70,27 @@ for b in blogs:  # already ranked: the most-linked copy of a blog wins
 if len(kept) < len(blogs):
     print(f"merged {len(blogs) - len(kept)} duplicate listings")
 blogs = kept
+# one blog under two hosts (blog.codinghorror.com and codinghorror.com): keep the most-linked, carry the author over
+SECTION_HOSTS = ("blog", "blogs", "www", "writing", "writings", "words", "notes", "journal", "posts", "articles", "essays")
+host_of = {b["site"]: b for b in blogs if "/" not in b["site"]}
+gone, author_from = set(), {}
+for b in blogs:
+    first, _, parent = b["site"].partition(".")
+    other = host_of.get(parent) if first in SECTION_HOSTS and "." in parent else None
+    if other and other["type"] == b["type"] and b["site"] not in gone and other["site"] not in gone:
+        keep, lose = (b, other) if b["n_people"] >= other["n_people"] else (other, b)
+        gone.add(lose["site"])
+        if not keep.get("author") and lose.get("author"):
+            author_from[keep["site"]] = lose["author"]
+if gone:
+    print(f"merged {len(gone)} blogs split across a subdomain and its parent")
+blogs = [b for b in blogs if b["site"] not in gone]
+# writers' names found from the blog's own pages (classify/authors.py), and from a merged twin
+authors_file = out / "authors.json"
+author_from = {
+    **{k: v for k, v in (json.loads(authors_file.read_text()) if authors_file.exists() else {}).items() if v},
+    **author_from,
+}
 for rank, b in enumerate(blogs, 1):
     b["rank"] = rank
 if drop:
@@ -84,6 +105,8 @@ for b in blogs:
     f = site / "blog" / f"{b['slug']}.json"
     d = json.loads(f.read_text())
     d["type"] = b["type"]  # after a retype by the second opinion
+    if b["type"] == "personal" and not b.get("author") and author_from.get(b["site"]):
+        b["author"] = d["author"] = author_from[b["site"]]
     # probe evidence: this export's blog file (p08 writes it), else to_classify.json (only unclassified sites)
     p = {"status": d["probe_status"], "final_url": d["final_url"]} if "final_url" in d else probed.get(b["site"], {})
     if not p and b["site"] in known:  # neither: keep the address the last merge worked out

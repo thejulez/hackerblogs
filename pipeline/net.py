@@ -3,6 +3,7 @@
 import asyncio
 import re
 from urllib.parse import urljoin, urlsplit
+from urllib.robotparser import RobotFileParser
 
 import h2.exceptions
 import httpx
@@ -29,8 +30,46 @@ def client() -> httpx.AsyncClient:
     )
 
 
+# robots.txt per origin, fetched once per run; APIs we read on purpose (HN) are not crawled pages
+ROBOTS: dict[str, RobotFileParser | None] = {}
+ROBOTS_LOCKS: dict[str, asyncio.Lock] = {}
+NO_ROBOTS = ("hacker-news.firebaseio.com", "hn.algolia.com")
+AGENT = "HackerBlogsBot"
+
+
+async def allowed(c: httpx.AsyncClient, url: str) -> bool:
+    """Whether the site's robots.txt lets HackerBlogsBot fetch this URL (RFC 9309)."""
+    parts = urlsplit(url)
+    if parts.hostname in NO_ROBOTS or parts.path == "/robots.txt":
+        return True
+    origin = f"{parts.scheme}://{parts.netloc}"
+    async with ROBOTS_LOCKS.setdefault(origin, asyncio.Lock()):
+        if origin not in ROBOTS:
+            try:
+                res = await asyncio.wait_for(_get(c, origin + "/robots.txt", 200_000), DEADLINE)
+            except TimeoutError:
+                res = None
+            # RFC 9309: rules apply when served; a 4xx means no rules; a 5xx means "assume everything disallowed"
+            rp = None
+            if res and res[0] == 200 and "html" not in res[2].lower():
+                rp = RobotFileParser()
+                rp.parse(res[3].decode("utf-8", "replace").splitlines())
+            elif res and res[0] >= 500:
+                rp = RobotFileParser()
+                rp.disallow_all = True
+            ROBOTS[origin] = rp
+    rp = ROBOTS[origin]
+    return rp is None or rp.can_fetch(AGENT, url)
+
+
 async def get(c: httpx.AsyncClient, url: str, max_bytes: int = MAX_BYTES):
-    """Return (status, final_url, content_type, body bytes) or None on network error or after DEADLINE seconds."""
+    """Return (status, final_url, content_type, body bytes) or None on network error, after DEADLINE seconds,
+    or when robots.txt disallows the URL for our crawler."""
+    try:
+        if not await allowed(c, url):
+            return None
+    except (TimeoutError, Exception):  # an unreachable robots.txt allows, like a missing one
+        pass
     try:
         return await asyncio.wait_for(_get(c, url, max_bytes), DEADLINE)
     except TimeoutError:  # the client timeout is per read: a server trickling bytes would hang forever

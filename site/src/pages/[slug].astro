@@ -44,6 +44,8 @@ const ext = icon("external", 13);
 const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
 const about = b.topics.filter((t) => t !== "other");
 const topPost = b.posts.find((p) => p.title)?.title;
+// search snippets: at most 155 characters, cut at a word
+const clip = (t: string, n: number) => (t.length <= n ? t : t.slice(0, t.lastIndexOf(" ", n - 1)).replace(/[,;:]$/, "") + "…");
 const intro = [
   b.type === "company"
     ? `${name} is the company blog at ${b.site}${about.length ? `, writing about ${list(about)}` : ""}.`
@@ -71,7 +73,31 @@ const counts = {
 };
 ---
 
-<Base title={`${name}${b.author && b.author !== name ? "" : ` (${b.site})`} · Hacker Blogs`} description={intro}>
+<Base
+  title={`${clip(name, 52)}${(b.author && b.author !== name) || name.length > 30 ? "" : ` (${clip(b.site, 24)})`} · Hacker Blogs`}
+  description={clip(intro || `${name}, a blog Hacker News readers keep linking to.`, 155)}
+  jsonld={{
+    "@type": "WebPage",
+    name,
+    description: clip(intro, 300),
+    about: {
+      "@type": "Blog",
+      name: b.name || name,
+      url: blogUrl,
+      ...(b.author ? { author: { "@type": "Person", name: b.author } } : {}),
+      ...(b.feed_url
+        ? { encoding: { "@type": "MediaObject", contentUrl: b.feed_url, encodingFormat: "application/rss+xml" } }
+        : {}),
+    },
+    breadcrumb: {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Hacker Blogs", item: "https://www.hackerblogs.org/" },
+        { "@type": "ListItem", position: 2, name, item: `https://www.hackerblogs.org/${b.slug}` },
+      ],
+    },
+  }}
+>
   <article class="detail">
     <p class="crumb muted small"><a href="/top">Top all-time</a> · #{b.rank}</p>
     <div class="title">

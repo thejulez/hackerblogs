@@ -64,6 +64,7 @@ function cleanDesc(s) {
 
 function cleanName(name, site) {
   if (!name) return name;
+  name = name.replace(/\s+/g, " ").trim(); // feed titles can carry newlines
   const s = name
     .replace(/('s)?\s+(rss|atom)?\s*feed$|\s+rss$/i, "")
     .replace(/\s+(\||—|–|-|·|\\|::|»)\s*$/, "")
