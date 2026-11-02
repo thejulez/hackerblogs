@@ -23,3 +23,6 @@ site/tsconfig.tsbuildinfo
 .DS_Store
 *.log
 PLAN.md
+
+# separate project, kept out of this repo
+hn-submit/
