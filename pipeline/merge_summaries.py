@@ -45,6 +45,9 @@ drop = {
 probe = out / "to_classify.json"  # carries each site's final URL from the probe
 probed = {r["site"]: r for r in json.loads(probe.read_text())} if probe.exists() else {}
 final = {k: r.get("final_url") for k, r in probed.items()}
+# results of launcher/check.ts: every listed link requested once from a Sandbox
+checked = out / "url_check.json"
+link_status = {r["url"]: r["status"] for r in json.loads(checked.read_text())} if checked.exists() else {}
 drop |= {b["site"] for b in blogs if parked_url(final.get(b["site"]))}
 blogs = [b for b in blogs if b["site"] not in drop]
 seen_blog, kept = set(), []
@@ -72,7 +75,14 @@ for b in blogs:
     p = probed.get(b["site"], {})
     # a personal site's homepage is the blog; p06's blog_path there is only where the feed was found
     path = d.get("blog_path", "") if b["type"] == "company" else ""
-    b["url"] = d["url"] = blog_url(b["site"], path, p.get("final_url"), p.get("status"))
+    url = blog_url(b["site"], path, p.get("final_url"), p.get("status"))
+    if link_status.get(url) in (404, 410):  # a blog section that is not a page, or a root with nothing on it
+        root = url.split("://", 1)[0] + "://" + url.split("://", 1)[1].split("/", 1)[0] + "/"
+        top = next((x["url"] for x in d.get("posts", []) if x.get("url")), None)
+        url = root if url.rstrip("/") != root.rstrip("/") else top or url
+    b["url"] = d["url"] = url
+    # listed from its HN history although the server did not answer our crawler: say so on the page
+    b["unverified"] = d["unverified"] = not p.get("status") or p["status"] < 0 or link_status.get(url) == 0
     s = summaries.get(b["site"])
     if not s:
         f.write_text(json.dumps(d, ensure_ascii=False))

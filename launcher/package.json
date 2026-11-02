@@ -8,7 +8,8 @@
     "pull": "tsx pull.ts",
     "push-classified": "tsx push.ts",
     "export": "tsx export.ts",
-    "shard": "tsx shard.ts"
+    "shard": "tsx shard.ts",
+    "check-urls": "tsx check.ts"
   },
   "dependencies": {
     "@vercel/sandbox": "^3.9.1",

@@ -36,6 +36,8 @@ const path = (url: string) => {
   }
 };
 const blogUrl = b.url ?? `https://${b.site}${b.blog_path}`; // where the probe landed: right scheme, current domain
+// when the site did not answer us, readers get its latest Wayback Machine copy instead (web/2/ = newest capture)
+const archiveUrl = `https://web.archive.org/web/2/${blogUrl}`;
 const ext = icon("external", 13);
 // a short plain-language summary for readers and search engines, built from the data
 const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
@@ -76,8 +78,9 @@ const counts = {
       <h1>{name}</h1>
     </div>
     <p class="by muted">
-      {b.type === "company" ? "Company blog" : "Personal blog"} · <a href={blogUrl} rel="nofollow noopener"
-        >{b.site}{b.blog_path.replace(/\/$/, "")}</a
+      {b.type === "company" ? "Company blog" : "Personal blog"} · <a
+        href={b.unverified ? archiveUrl : blogUrl}
+        rel="nofollow noopener">{b.site}{b.blog_path.replace(/\/$/, "")}</a
       >
       {
         b.hn_author && (
@@ -120,7 +123,27 @@ const counts = {
           </span>
         )
       }
-      <a class="btn" href={blogUrl} rel="nofollow noopener">Visit the blog <Fragment set:html={ext} /></a>
+      {
+        b.unverified ? (
+          <>
+            <a
+              class="btn"
+              href={archiveUrl}
+              rel="nofollow noopener"
+              title="The site did not answer our crawler, so this opens its latest copy in the Internet Archive"
+            >
+              Open in the Web Archive <Fragment set:html={ext} />
+            </a>
+            <a class="small muted" href={blogUrl} rel="nofollow noopener">
+              Try the live site
+            </a>
+          </>
+        ) : (
+          <a class="btn" href={blogUrl} rel="nofollow noopener">
+            Visit the blog <Fragment set:html={ext} />
+          </a>
+        )
+      }
       {
         b.feed_url && (
           <button type="button" class="btn" id="copy" data-feed={b.feed_url}>

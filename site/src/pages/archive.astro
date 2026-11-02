@@ -1,0 +1,133 @@
+---
+/**
+ * The archive: blogs Hacker News linked a lot that are now gone, parked or in other hands. They keep their HN history
+ * and a Wayback Machine link from the years HN read them; the live domain is never linked (several are now casinos).
+ */
+import Base from "../layouts/Base.astro";
+import archive from "../data/archive.json";
+
+type Story = { id: number; title: string; points: number; year: number };
+type Entry = {
+  site: string;
+  was: "personal" | "company";
+  name: string;
+  author: string;
+  what: string;
+  state: "gone" | "parked" | "changed";
+  n_people: number;
+  first_year: number | null;
+  last_year: number | null;
+  wayback_year: number | null;
+  stories: Story[];
+};
+const rows = (archive as Entry[]).sort((a, b) => b.n_people - a.n_people);
+const BADGE = { gone: "Gone", parked: "Parked", changed: "Changed hands" };
+const wayback = (e: Entry) => `https://web.archive.org/web/${e.wayback_year ?? ""}/https://${e.site}/`;
+const n = (s: Entry["state"]) => rows.filter((e) => e.state === s).length;
+---
+
+<Base
+  title="Archive · Hacker Blogs"
+  active="archive"
+  description={`${rows.length} blogs Hacker News linked over and over that are now gone, parked or in other hands, with their HN history and Wayback Machine links.`}
+>
+  <h1>Archive</h1>
+  <p class="muted intro">
+    {rows.length} blogs that at least 30 people linked on Hacker News and that no longer serve their writing: {n("gone")} are gone,{
+      " "
+    }
+    {n("parked")} are parked or for sale, {n("changed")} now belong to someone else. Each links to the Wayback Machine in the year
+    HN paid most attention, never to today's domain.
+  </p>
+  <ol class="arch">
+    {
+      rows.map((e) => (
+        <li>
+          <div class="head">
+            <a class="name" href={wayback(e)} rel="nofollow noopener">
+              {e.name || e.site}
+            </a>
+            <span class:list={["badge", e.state]}>{BADGE[e.state]}</span>
+            <span class="muted small">
+              {e.was === "company" ? "Company blog" : "Personal blog"} · {e.site} · {e.n_people.toLocaleString("en")} people on HN
+              {e.first_year && ` · ${e.first_year === e.last_year ? e.first_year : `${e.first_year}–${e.last_year}`}`}
+            </span>
+          </div>
+          {e.what && <p class="what">{e.what}</p>}
+          {e.stories.length > 0 && (
+            <ul class="stories small">
+              {e.stories.slice(0, 3).map((s) => (
+                <li>
+                  <a href={`https://news.ycombinator.com/item?id=${s.id}`}>{s.title}</a>{" "}
+                  <span class="muted">
+                    {s.points} points · {s.year}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</Base>
+
+<style>
+  h1 {
+    margin: 28px 0 6px;
+  }
+  .intro {
+    max-width: 680px;
+  }
+  .arch {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .arch > li {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+  }
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+  }
+  .name {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .name:hover {
+    text-decoration: underline;
+  }
+  .badge {
+    font-size: 0.72rem;
+    border-radius: 999px;
+    padding: 0 8px;
+    background: var(--chip);
+    color: var(--muted);
+  }
+  .badge.parked,
+  .badge.changed {
+    background: var(--accent-soft);
+    color: var(--crit);
+  }
+  .what {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+  }
+  .stories {
+    margin: 6px 0 0;
+    padding-left: 18px;
+  }
+  .stories a {
+    text-decoration: none;
+  }
+  .stories a:hover {
+    text-decoration: underline;
+  }
+</style>

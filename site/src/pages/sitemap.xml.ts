@@ -10,6 +10,7 @@ export const GET: APIRoute = ({ site }) => {
     "/recommended",
     "/rising",
     "/about",
+    "/archive",
     "/opml",
     ...topics.map((t) => `/topic/${t}`),
     ...blogs.map((b) => `/${b.slug}`),

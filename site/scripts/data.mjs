@@ -41,7 +41,6 @@ const KEEP = [
   "stance",
   "spark",
   "icon",
-  "url",
 ];
 
 // Page titles make poor names ("Home \\ Anthropic", "Blog - Astral", "Mailgun | Transactional Email API…"):
@@ -86,6 +85,9 @@ for (const f of readdirSync(`${SRC}/blog`)) {
   writeFileSync(`src/data/blog/${f}`, JSON.stringify(d));
 }
 cpSync(`${SRC}/meta.json`, "src/data/meta.json");
+// the archive: heavily linked blogs that are gone, parked or changed hands (classify/archive.py, checked by hand rules)
+const ARCHIVE = "../data/out/archive.keep.json";
+writeFileSync("src/data/archive.json", existsSync(ARCHIVE) ? readFileSync(ARCHIVE, "utf8") : "[]");
 if (existsSync(`${SRC}/icons`)) cpSync(`${SRC}/icons`, "public/icons", { recursive: true });
 const icons = new Set(existsSync("public/icons") ? readdirSync("public/icons") : []);
 
@@ -97,8 +99,19 @@ for (const b of blogs) {
 writeFileSync("src/data/blogs.json", JSON.stringify(blogs));
 writeFileSync(
   "public/data/blogs.json",
-  JSON.stringify(blogs.map((b) => Object.fromEntries(KEEP.filter((k) => k in b).map((k) => [k, b[k]])))),
+  JSON.stringify(
+    blogs.map((b) => Object.fromEntries(KEEP.filter((k) => k in b && b[k] != null && b[k] !== "").map((k) => [k, slim(k, b)]))),
+  ),
 );
+
+// the browser list only searches, sorts and filters: dates to the day, search text cut short, no feed title when a name exists
+function slim(k, b) {
+  const v = b[k];
+  if (k === "first_seen" || k === "last_seen" || k === "last_post_at") return v.slice(0, 10);
+  if (k === "description" || k === "why") return v.slice(0, 140);
+  if (k === "feed_title" && (b.author || b.name)) return undefined;
+  return v;
+}
 
 const listed = new Set(blogs.map((b) => b.slug));
 let n = 0;
