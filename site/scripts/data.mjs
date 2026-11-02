@@ -48,6 +48,20 @@ const KEEP = [
 const GENERIC =
   /^(home|homepage|blog|the blog|blog posts|posts|articles|writing|writings|index|welcome|news|rss feed|atom feed|feed|rss|medium|substack|english)$/i;
 const alnum = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+// homepage meta descriptions carry platform boilerplate ("Click to read X, a Substack publication with
+// tens of thousands of subscribers."); keep the author's own words
+const BOILER = [
+  /\s*Click to read [^.]*?, (?:a|an) Substack publication(?: with [^.]*? subscribers)?\.?/gi,
+  /\s*(?:A|a) Substack publication(?: with [^.]*? subscribers)?\.?/g,
+  /\s*Read [^.]*? on Medium\.?/g,
+  /\s*Subscribe (?:now|for free)[^.]*\.?/g,
+];
+function cleanDesc(s) {
+  if (!s) return s;
+  for (const re of BOILER) s = s.replace(re, "");
+  return s.replace(/\s{2,}/g, " ").trim();
+}
+
 function cleanName(name, site) {
   if (!name) return name;
   const s = name
@@ -82,6 +96,7 @@ for (const f of readdirSync(`${SRC}/blog`)) {
   const d = JSON.parse(readFileSync(`${SRC}/blog/${f}`, "utf8"));
   d.mentions = d.mentions.map(trim);
   d.name = cleanName(d.name, d.site);
+  d.description = cleanDesc(d.description);
   writeFileSync(`src/data/blog/${f}`, JSON.stringify(d));
 }
 cpSync(`${SRC}/meta.json`, "src/data/meta.json");
@@ -95,6 +110,7 @@ const blogs = JSON.parse(readFileSync(`${SRC}/blogs.json`, "utf8"));
 for (const b of blogs) {
   b.icon = icons.has(`${b.slug}.png`);
   b.name = cleanName(b.name, b.site);
+  b.description = cleanDesc(b.description);
 }
 writeFileSync("src/data/blogs.json", JSON.stringify(blogs));
 writeFileSync(

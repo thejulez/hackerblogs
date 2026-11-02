@@ -22,6 +22,8 @@ type BlogDetail = Blog & {
   description: string;
   praised_for?: string;
   criticized_for?: string;
+  praised_ids?: number[];
+  criticized_ids?: number[];
   author_profile: { id: string; karma: number | null; created: string | null; about: string } | null;
   years: { year: number; people: number; mentions: number }[];
   linkers: { by: string; n_links: number; karma: number | null; is_author: boolean }[];

@@ -42,6 +42,14 @@ drop = {
     # a company linked from fewer than two HN stories is mostly a product page with a post or two (audit: 8 of 9 wrong)
     or (b["type"] == "company" and b.get("n_stories", 0) < 2)
 }
+# second opinion on every listing (classify/verify.py): drop clear non-blogs, fix clear type errors
+verified_file = out / "verified.json"
+verified = json.loads(verified_file.read_text()) if verified_file.exists() else {}
+sure = {k: v for k, v in verified.items() if v.get("confidence", 0) >= 0.8}
+drop |= {b["site"] for b in blogs if sure.get(b["site"], {}).get("verdict") == "drop"}
+for b in blogs:
+    if sure.get(b["site"], {}).get("verdict") == "retype":
+        b["type"] = sure[b["site"]]["type"]
 probe = out / "to_classify.json"  # carries each site's final URL from the probe
 probed = {r["site"]: r for r in json.loads(probe.read_text())} if probe.exists() else {}
 final = {k: r.get("final_url") for k, r in probed.items()}
@@ -72,6 +80,7 @@ for b in blogs:
         b["spark"] = [by.get(y, 0) for y in range(2007, datetime.now(UTC).year + 1)]
     f = site / "blog" / f"{b['slug']}.json"
     d = json.loads(f.read_text())
+    d["type"] = b["type"]  # after a retype by the second opinion
     p = probed.get(b["site"], {})
     # a personal site's homepage is the blog; p06's blog_path there is only where the feed was found
     path = d.get("blog_path", "") if b["type"] == "company" else ""
@@ -91,6 +100,13 @@ for b in blogs:
     b["why"], b["stance"] = s["why"], stance_counts(s["stances"])
     d["why"], d["stance"] = b["why"], b["stance"]
     d["praised_for"], d["criticized_for"] = s.get("praised_for", ""), s.get("criticized_for", "")
+    present = {m["id"] for m in d["mentions"]}
+    more = site / "mentions" / f"{b['slug']}.json"
+    if more.exists() and d.get("n_more"):
+        present |= {m["id"] for m in json.loads(more.read_text())}
+    # the comments cited, when they are still in this export's mention lists
+    d["praised_ids"] = [i for i in s.get("praised_ids", []) if i in present]
+    d["criticized_ids"] = [i for i in s.get("criticized_ids", []) if i in present]
     for m in d["mentions"]:
         m["stance"] = s["stances"].get(str(m["id"]))  # only current-rule labels
     f.write_text(json.dumps(d, ensure_ascii=False))

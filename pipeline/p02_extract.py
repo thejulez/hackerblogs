@@ -32,6 +32,9 @@ CREATE OR REPLACE TABLE tree AS
 CREATE OR REPLACE TABLE stories AS
     SELECT id, title, "by", time, score, url FROM {src}
     WHERE type = 1 AND coalesce(deleted, 0) = 0 AND coalesce(dead, 0) = 0;
+-- titles of every thread a comment can sit in, polls and later-killed stories included (their comments still count)
+CREATE OR REPLACE TABLE threads AS
+    SELECT id, title, score FROM {src} WHERE type <> 2 AND coalesce(deleted, 0) = 0 AND coalesce(title, '') <> '';
 """)
 
 lg.info("extracting comment hrefs")
@@ -64,7 +67,7 @@ WITH m AS (
 )
 SELECT m.item_id, m.kind, m."by", m.ts, m.url, site_of(m.url) AS site,
        m.story_id, s.title AS story_title, s.score AS story_score
-FROM m LEFT JOIN stories s ON s.id = m.story_id
+FROM m LEFT JOIN threads s ON s.id = m.story_id
 WHERE m.url LIKE 'http%' AND site_of(m.url) <> '' AND m."by" IS NOT NULL;
 COPY mention TO '{WORK}/mention.parquet' (FORMAT parquet);
 """)

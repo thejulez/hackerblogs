@@ -5,6 +5,7 @@ import { avatar, type Row } from "../lib/card";
 import { icon, topicIcon } from "../lib/icons";
 import YearChart from "../components/YearChart.astro";
 import Hint from "../components/Hint.astro";
+import Cites from "../components/Cites.astro";
 import { band, showCritical } from "../lib/stance";
 
 export function getStaticPaths() {
@@ -234,7 +235,10 @@ const counts = {
                     <i class="dot rec" />
                     Recommended for{st && st.recommend > 0 && <span class="muted"> · {st.recommend} comments</span>}
                   </dt>
-                  <dd>{b.praised_for}</dd>
+                  <dd>
+                    {b.praised_for}
+                    <Cites ids={b.praised_ids} />
+                  </dd>
                 </div>
               )}
               {b.criticized_for && showCrit && (
@@ -243,7 +247,10 @@ const counts = {
                     <i class="dot crit" />
                     Criticised for<span class="muted"> · {st!.critical} comments</span>
                   </dt>
-                  <dd>{b.criticized_for}</dd>
+                  <dd>
+                    {b.criticized_for}
+                    <Cites ids={b.criticized_ids} />
+                  </dd>
                 </div>
               )}
             </dl>
@@ -358,7 +365,8 @@ const counts = {
                 </>
               )}
               <a class="ctx small" href={`${HN}/item?id=${m.kind === "story" ? m.id : (m.story_id ?? m.id)}`}>
-                {m.kind === "story" ? "HN discussion" : `on “${m.title || "a thread"}”`} <Fragment set:html={ext} />
+                {m.kind === "story" ? "HN discussion" : m.title ? `on “${m.title}”` : "on a deleted thread"}{" "}
+                <Fragment set:html={ext} />
               </a>
             </li>
           ))
@@ -498,7 +506,7 @@ const counts = {
       li.append(
         link(
           `${HN}/item?id=${m.kind === "story" ? m.id : (m.story_id ?? m.id)}`,
-          m.kind === "story" ? "HN discussion ↗" : `on “${m.title || "a thread"}” ↗`,
+          m.kind === "story" ? "HN discussion ↗" : m.title ? `on “${m.title}” ↗` : "on a deleted thread ↗",
           "ctx small",
         ),
       );
@@ -600,6 +608,9 @@ const counts = {
   .crit {
     background: var(--crit);
   }
+  .dot.rec {
+    background: var(--ok);
+  }
   .dot {
     display: inline-block;
     width: 8px;
@@ -625,8 +636,17 @@ const counts = {
     font-size: 0.8rem;
     font-weight: 600;
   }
+  .reasons dt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   .reasons dd {
-    margin: 2px 0 0;
+    margin: 4px 0 0;
+    line-height: 1.5;
+  }
+  .reasons .dot {
+    margin: 0;
   }
   .topics {
     display: flex;

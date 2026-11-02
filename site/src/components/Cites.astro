@@ -1,0 +1,44 @@
+---
+/** Links to the HN comments a recommendation or criticism summary was drawn from, as numbered references. */
+import { HN } from "../lib/data";
+
+interface Props {
+  ids?: number[];
+}
+const ids = (Astro.props.ids ?? []).slice(0, 8);
+---
+
+{
+  ids.length > 0 && (
+    <span class="cites">
+      {ids.map((id, i) => (
+        <a href={`${HN}/item?id=${id}`} title="Open this comment on Hacker News">
+          {i + 1}
+        </a>
+      ))}
+    </span>
+  )
+}
+
+<style>
+  .cites {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+  .cites a {
+    font-size: 0.7rem;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: var(--chip);
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .cites a:hover {
+    color: var(--fg);
+    background: var(--line);
+  }
+</style>

@@ -100,6 +100,8 @@ cd site && pnpm install && pnpm data && pnpm build && pnpm vercel-output
 vercel deploy --prebuilt            # from the repo root
 ```
 
+**Weekly refresh:** `./refresh.sh` runs all of the above in order: new HN items from the API, new candidates, classification, feeds, thread titles, summaries, a second-opinion check on new listings, a link check from a Sandbox, validation (`pipeline/validate.py`) and a production deploy (`--preview` for a preview). Every step resumes after a failure.
+
 A one-month smoke run: `pnpm launch --sample 2024-01`. Without a Sandbox: `HB_DATA=/some/dir pipeline/run_all.sh --sample 2014-01`.
 
 Formatting and linting: `pnpm format` / `pnpm lint` at the root (Prettier for TypeScript and Astro, Ruff for Python).
