@@ -112,4 +112,4 @@ Formatting and linting: `pnpm format` / `pnpm lint` at the root (Prettier for Ty
 
 Hacker News data from the [open-index/hacker-news](https://huggingface.co/datasets/open-index/hacker-news) dataset (ODC-BY) and the [Hacker News API](https://github.com/HackerNews/API). Not affiliated with Y Combinator or Hacker News. Inspired by Karpathy's HackerTube and HackerBooks.
 
-Made by [Julian Paul](https://x.com/itsjulianpaul), built with Claude Code.
+Code under the [MIT License](LICENSE). Made by [Julian Paul](https://x.com/itsjulianpaul), built with Claude Code.
